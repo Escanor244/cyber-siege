@@ -51,19 +51,26 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 Deploying Cyber Siege is completely **free** and takes 2 simple steps:
 
-### Step 1: Deploy the Multiplayer Server (PartyKit)
-PartyKit hosts the real-time WebSocket rooms on Cloudflare's global edge network.
+### Step 1: Deploy the Multiplayer Server (Cloudflare Workers via Wrangler)
+Cloudflare acquired PartyKit and now hosts PartyServer directly on your free Cloudflare account with zero limits or fees.
 
 1. In your terminal, run:
    ```bash
-   npx partykit deploy
+   npx wrangler login
    ```
-2. If this is your first time, it will open your browser to log in with GitHub for your free PartyKit account.
-3. Once deployed, PartyKit will output your live server URL, for example:
+   *(Opens browser to log in or create a free Cloudflare account in 10 seconds)*
+
+2. Deploy the server:
+   ```bash
+   npm run server:deploy
+   # (or: npx wrangler deploy)
+   ```
+3. Once deployed, Wrangler outputs your live URL, for example:
    ```text
-   Deployed to https://cyber-siege.<your-username>.partykit.dev
+   Uploaded cyber-siege (X.XX sec)
+   Deployed to https://cyber-siege.<your-subdomain>.workers.dev
    ```
-4. Copy the host domain: `cyber-siege.<your-username>.partykit.dev`.
+4. Copy your live domain: `cyber-siege.<your-subdomain>.workers.dev`.
 
 ---
 

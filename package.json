@@ -9,8 +9,9 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "party:dev": "partykit dev --port 1999",
-    "party:deploy": "partykit deploy",
-    "server:dev": "partykit dev --port 1999"
+    "party:deploy": "wrangler deploy",
+    "server:dev": "partykit dev --port 1999",
+    "server:deploy": "wrangler deploy"
   },
   "dependencies": {
     "canvas-confetti": "^1.9.4",
