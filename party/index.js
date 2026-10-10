@@ -1,4 +1,5 @@
-// Cyber Siege - 1v1 Tug-of-War Tower Defense PartyKit Server
+// Cyber Siege - 1v1 Tug-of-War Tower Defense PartyServer / Cloudflare Workers
+import { routePartykitRequest, Server } from "partyserver";
 import {
   TOWERS,
   CREEP_RAIDS,
@@ -18,15 +19,21 @@ const INCOME_INTERVAL_MS = 2000; // Gold income ticks every 2s
 // Server-wide permanent registry of deleted room IDs to prevent ghost resurrection and server overload
 const DELETED_ROOMS = new Set();
 
-export default class CyberSiegeServer {
-  constructor(room) {
-    this.room = room;
+export class CyberSiegeServer extends Server {
+  static options = { hibernate: true };
+
+  constructor(ctx, env) {
+    super(ctx, env);
     this.hostSessionId = null;
-    this.isDeleted = DELETED_ROOMS.has(room.id);
+    this.isDeleted = DELETED_ROOMS.has(this.roomId);
     this.state = this.initialState();
     this.incomeTimer = null;
     this.matchClockTimer = null;
     this.disconnectTimeouts = new Map();
+  }
+
+  get roomId() {
+    return this.name || this.room?.id || "default";
   }
 
   initialState() {
@@ -43,7 +50,7 @@ export default class CyberSiegeServer {
   }
 
   onConnect(conn) {
-    if (this.isDeleted || DELETED_ROOMS.has(this.room.id)) {
+    if (this.isDeleted || DELETED_ROOMS.has(this.roomId)) {
       try {
         conn.send(
           JSON.stringify({
@@ -62,8 +69,11 @@ export default class CyberSiegeServer {
     } catch (e) {}
   }
 
-  onMessage(message, sender) {
-    if (this.isDeleted || DELETED_ROOMS.has(this.room.id)) {
+  onMessage(arg1, arg2) {
+    const sender = arg1 && typeof arg1.send === "function" ? arg1 : arg2;
+    const message = typeof arg1 === "string" || arg1 instanceof ArrayBuffer ? arg1 : arg2;
+
+    if (this.isDeleted || DELETED_ROOMS.has(this.roomId)) {
       try {
         sender.send(
           JSON.stringify({
@@ -135,7 +145,7 @@ export default class CyberSiegeServer {
     // CRITICAL DISPOSAL 1:
     // If NO human players remain in the room, immediately permanently delete room
     if (humanPlayers.length === 0) {
-      console.log(`[CyberSiegeServer] Room ${this.room.id} completely empty. Permanently disposing room.`);
+      console.log(`[CyberSiegeServer] Room ${this.roomId} completely empty. Permanently disposing room.`);
       this.disposeRoom();
       return;
     }
@@ -145,7 +155,7 @@ export default class CyberSiegeServer {
     // Permanently close and delete the room in ALL phases (lobby, playing, game_over)!
     // Notify any remaining players and terminate all connections so zero orphan rooms linger.
     if (wasHost) {
-      console.log(`[CyberSiegeServer] Room creator/host left room ${this.room.id}. Permanently disposing room.`);
+      console.log(`[CyberSiegeServer] Room creator/host left room ${this.roomId}. Permanently disposing room.`);
       this.broadcast(
         JSON.stringify({
           type: "room-closed",
@@ -175,9 +185,9 @@ export default class CyberSiegeServer {
 
   disposeRoom() {
     this.isDeleted = true;
-    DELETED_ROOMS.add(this.room.id);
+    DELETED_ROOMS.add(this.roomId);
     try {
-      this.room.storage?.put("isDeleted", true);
+      this.ctx?.storage?.put("isDeleted", true);
     } catch (e) {}
 
     this.stopTimers();
@@ -191,20 +201,22 @@ export default class CyberSiegeServer {
 
     // Close all open client connections for this room safely
     try {
-      if (this.room && typeof this.room.getConnections === "function") {
-        for (const conn of this.room.getConnections()) {
-          try {
-            conn.send(
-              JSON.stringify({
-                type: "room-closed",
-                reason: "This room has ended and no longer exists.",
-              })
-            );
-          } catch (e) {}
-          try {
-            conn.close();
-          } catch (e) {}
-        }
+      const connections =
+        typeof this.getConnections === "function"
+          ? this.getConnections()
+          : this.room?.getConnections?.() || [];
+      for (const conn of connections) {
+        try {
+          conn.send(
+            JSON.stringify({
+              type: "room-closed",
+              reason: "This room has ended and no longer exists.",
+            })
+          );
+        } catch (e) {}
+        try {
+          conn.close();
+        } catch (e) {}
       }
     } catch (e) {}
   }
@@ -239,7 +251,7 @@ export default class CyberSiegeServer {
   }
 
   handleJoin(msg, sender) {
-    if (this.isDeleted || DELETED_ROOMS.has(this.room.id)) {
+    if (this.isDeleted || DELETED_ROOMS.has(this.roomId)) {
       try {
         sender.send(
           JSON.stringify({
@@ -834,18 +846,24 @@ export default class CyberSiegeServer {
 
   broadcast(data, without = []) {
     try {
-      this.room.broadcast(data, without);
+      if (typeof super.broadcast === "function") {
+        super.broadcast(data, without);
+        return;
+      }
+      this.room?.broadcast?.(data, without);
     } catch (e) {
       try {
-        if (this.room && typeof this.room.getConnections === "function") {
-          for (const conn of this.room.getConnections()) {
-            if (without.includes(conn.id)) continue;
-            try {
-              if (conn.readyState === 1) {
-                conn.send(data);
-              }
-            } catch (err) {}
-          }
+        const connections =
+          typeof this.getConnections === "function"
+            ? this.getConnections()
+            : this.room?.getConnections?.() || [];
+        for (const conn of connections) {
+          if (without.includes(conn.id)) continue;
+          try {
+            if (conn.readyState === 1) {
+              conn.send(data);
+            }
+          } catch (err) {}
         }
       } catch (err) {}
     }
@@ -855,3 +873,12 @@ export default class CyberSiegeServer {
     this.broadcast(JSON.stringify({ type: "state-update", state: this.state }));
   }
 }
+
+export default {
+  async fetch(request, env) {
+    return (
+      (await routePartykitRequest(request, env)) ||
+      new Response("Not Found", { status: 404 })
+    );
+  },
+};
