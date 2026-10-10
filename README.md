@@ -2,6 +2,8 @@
 
 A real-time 1v1 multiplayer tug-of-war tower defense game built with **React**, **Vite**, **PartyKit**, and **HTML5 Canvas**.
 
+---
+
 ## 🎮 Gameplay Overview
 
 In **Cyber Siege**, two commanders duel on mirrored battlegrounds. Players build defense towers along their sector pathway to eliminate oncoming waves while spending gold to spam monster raids, summon dread bosses, and cast orbital sabotages against the opponent!
@@ -23,18 +25,14 @@ In **Cyber Siege**, two commanders duel on mirrored battlegrounds. Players build
 
 ---
 
-## 🚀 Getting Started
+## 🚀 Running Locally
 
-### Prerequisites
-- Node.js 18+
-- npm or pnpm
-
-### Installation
+### 1. Installation
 ```bash
 npm install
 ```
 
-### Running Locally
+### 2. Start Both Dev Servers
 Run both client and multiplayer server in separate terminals:
 
 ```bash
@@ -49,24 +47,53 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
-## 🚢 Deployment
+## 🌐 How to Deploy (Step-by-Step)
 
-### 1. Multiplayer Backend (PartyKit)
-```bash
-npm run party:deploy
-```
-This deploys the WebSocket room coordinator to Cloudflare's global edge network.
+Deploying Cyber Siege is completely **free** and takes 2 simple steps:
 
-### 2. Frontend (Vercel / Cloudflare Pages / Netlify)
-Set the environment variable in your Vercel or hosting dashboard:
-```env
-VITE_PARTYKIT_HOST=cyber-siege.<your-partykit-username>.partykit.dev
-```
-Then build and deploy:
-```bash
-npm run build
-```
-The output will be generated in `dist/`.
+### Step 1: Deploy the Multiplayer Server (PartyKit)
+PartyKit hosts the real-time WebSocket rooms on Cloudflare's global edge network.
+
+1. In your terminal, run:
+   ```bash
+   npx partykit deploy
+   ```
+2. If this is your first time, it will open your browser to log in with GitHub for your free PartyKit account.
+3. Once deployed, PartyKit will output your live server URL, for example:
+   ```text
+   Deployed to https://cyber-siege.<your-username>.partykit.dev
+   ```
+4. Copy the host domain: `cyber-siege.<your-username>.partykit.dev`.
+
+---
+
+### Step 2: Deploy the Frontend to Vercel
+
+1. Go to [Vercel](https://vercel.com/) and click **"Add New Project"**.
+2. Select your GitHub repository: `Escanor244/cyber-siege`.
+3. In the project configuration:
+   - **Framework Preset**: Vite (detected automatically)
+   - **Build Command**: `npm run build`
+   - **Output Directory**: `dist`
+4. Expand **"Environment Variables"** and add:
+   - **Key**: `VITE_PARTYKIT_HOST`
+   - **Value**: `cyber-siege.<your-username>.partykit.dev` *(from Step 1)*
+5. Click **"Deploy"**.
+6. In ~30 seconds, Vercel will give you a live production link (e.g. `https://cyber-siege.vercel.app`)!
+
+---
+
+## 📦 How to Create a Release on GitHub
+
+To create a downloadable version release (e.g. `v1.0.0`):
+
+1. Go to your repo on GitHub: [https://github.com/Escanor244/cyber-siege](https://github.com/Escanor244/cyber-siege)
+2. On the right-hand sidebar, click **"Releases"** (or click **"Create a new release"**).
+3. Click **"Draft a new release"**.
+4. Click **"Choose a tag"**, type `v1.0.0`, and select **"Create new tag"**.
+5. Set Release title: `Cyber Siege v1.0.0 - Production Launch`.
+6. Add notes describing the release features and click **"Publish release"**.
+7. GitHub will automatically attach `.zip` and `.tar.gz` source code downloads under that release!
 
 ---
 
