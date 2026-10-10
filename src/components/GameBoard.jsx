@@ -23,6 +23,7 @@ export default function GameBoard({
   title = "SECTOR ALPHA",
   baseHp = 100,
   playerSlot = "p1",
+  isPaused = false,
 }) {
   const canvasRef = useRef(null);
 
@@ -36,6 +37,8 @@ export default function GameBoard({
   const spawnTimeoutsRef = useRef([]);
 
   // Stable refs to prevent animation frame restarts on hover/selection
+  const isPausedRef = useRef(isPaused);
+  isPausedRef.current = isPaused;
   const hoverGridRef = useRef(null);
   const towersRef = useRef(towers);
   towersRef.current = towers;
@@ -214,6 +217,8 @@ export default function GameBoard({
 
   // Game Physics & Logic Update
   const updateGame = (dt) => {
+    if (isPausedRef.current) return;
+
     const creeps = creepsRef.current;
     const projectiles = projectilesRef.current;
     const particles = particlesRef.current;

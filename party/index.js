@@ -16,19 +16,16 @@ import {
 
 const INCOME_INTERVAL_MS = 2000; // Gold income ticks every 2s
 
-// Server-wide permanent registry of deleted room IDs to prevent ghost resurrection and server overload
-const DELETED_ROOMS = new Set();
-
 export class CyberSiegeServer extends Server {
   static options = { hibernate: true };
 
   constructor(ctx, env) {
     super(ctx, env);
-    this.hostSessionId = null;
-    this.isDeleted = DELETED_ROOMS.has(this.roomId);
+    this.isDeleted = false;
     this.state = this.initialState();
     this.incomeTimer = null;
     this.matchClockTimer = null;
+    this.pauseTimer = null;
     this.disconnectTimeouts = new Map();
   }
 
@@ -39,6 +36,7 @@ export class CyberSiegeServer extends Server {
   initialState() {
     return {
       phase: "lobby", // 'lobby' | 'playing' | 'game_over' | 'closed'
+      hostSessionId: null, // Strictly locks to room creator
       players: [],
       matchTimeSeconds: 0,
       currentWaveNumber: 0,
@@ -46,24 +44,45 @@ export class CyberSiegeServer extends Server {
       winnerId: null,
       loserId: null,
       isAiMatch: false,
+      isPaused: false, // 30-second combat pause on disconnect / tab switch
+      pauseCountdown: 30,
+      pausedPlayerName: null,
     };
   }
 
+  async onStart() {
+    try {
+      const savedState = await this.ctx?.storage?.get("gameState");
+      if (savedState) {
+        this.state = savedState;
+      }
+    } catch (e) {}
+  }
+
+  saveState() {
+    try {
+      this.ctx?.storage?.put("gameState", this.state);
+    } catch (e) {}
+  }
+
   onConnect(conn) {
-    if (this.isDeleted || DELETED_ROOMS.has(this.roomId)) {
+    // If room has been closed or marked deleted, reject:
+    if (this.isDeleted || this.state.phase === "closed") {
       try {
         conn.send(
           JSON.stringify({
             type: "room-closed",
-            reason: "This room has ended and no longer exists.",
+            reason: "This battle room does not exist or has ended.",
           })
         );
       } catch (e) {}
       try {
-        conn.close();
+        conn.close(1000, "Room closed");
       } catch (e) {}
       return;
     }
+
+    // Send latest state update to client
     try {
       conn.send(JSON.stringify({ type: "state-update", state: this.state }));
     } catch (e) {}
@@ -72,21 +91,6 @@ export class CyberSiegeServer extends Server {
   onMessage(arg1, arg2) {
     const sender = arg1 && typeof arg1.send === "function" ? arg1 : arg2;
     const message = typeof arg1 === "string" || arg1 instanceof ArrayBuffer ? arg1 : arg2;
-
-    if (this.isDeleted || DELETED_ROOMS.has(this.roomId)) {
-      try {
-        sender.send(
-          JSON.stringify({
-            type: "room-closed",
-            reason: "This room has ended and no longer exists.",
-          })
-        );
-      } catch (e) {}
-      try {
-        sender.close();
-      } catch (e) {}
-      return;
-    }
 
     try {
       const msg = JSON.parse(message);
@@ -131,7 +135,7 @@ export class CyberSiegeServer extends Server {
     const removedPlayer = this.state.players[playerIndex];
     const wasHost =
       !!removedPlayer.isHost ||
-      removedPlayer.sessionId === this.hostSessionId ||
+      removedPlayer.sessionId === this.state.hostSessionId ||
       removedPlayer.slot === "p1";
 
     if (this.disconnectTimeouts.has(removedPlayer.sessionId)) {
@@ -139,27 +143,37 @@ export class CyberSiegeServer extends Server {
       this.disconnectTimeouts.delete(removedPlayer.sessionId);
     }
 
+    if (this.pauseTimer) {
+      clearInterval(this.pauseTimer);
+      this.pauseTimer = null;
+    }
+    this.state.isPaused = false;
+    this.state.pauseCountdown = 30;
+    this.state.pausedPlayerName = null;
+
     this.state.players.splice(playerIndex, 1);
     const humanPlayers = this.state.players.filter((p) => !p.isAi);
 
     // CRITICAL DISPOSAL 1:
     // If NO human players remain in the room, immediately permanently delete room
     if (humanPlayers.length === 0) {
-      console.log(`[CyberSiegeServer] Room ${this.roomId} completely empty. Permanently disposing room.`);
+      console.log(`[CyberSiegeServer] Room ${this.roomId} completely empty. Disposing room.`);
       this.disposeRoom();
       return;
     }
 
     // CRITICAL DISPOSAL 2:
-    // When the ROOM CREATOR / HOST leaves (deliberately or via disconnect timeout):
+    // When the ROOM CREATOR / HOST leaves (deliberately or via 30s timeout):
     // Permanently close and delete the room in ALL phases (lobby, playing, game_over)!
     // Notify any remaining players and terminate all connections so zero orphan rooms linger.
     if (wasHost) {
-      console.log(`[CyberSiegeServer] Room creator/host left room ${this.roomId}. Permanently disposing room.`);
+      console.log(`[CyberSiegeServer] Room creator/host left room ${this.roomId}. Disposing room.`);
       this.broadcast(
         JSON.stringify({
           type: "room-closed",
-          reason: "The room creator has left. The room has been deleted.",
+          reason: isDeliberate
+            ? "The room creator has left. The room has been deleted."
+            : "The room host forfeited. The room has been closed.",
         })
       );
       this.disposeRoom();
@@ -175,27 +189,31 @@ export class CyberSiegeServer extends Server {
         this.state.winnerId = survivor.id;
         this.state.loserId = removedPlayer.id;
       }
+      this.saveState();
       this.broadcastState();
       return;
     }
 
     // SCENARIO 4: Non-host left during lobby or game_over
+    this.saveState();
     this.broadcastState();
   }
 
   disposeRoom() {
     this.isDeleted = true;
-    DELETED_ROOMS.add(this.roomId);
     try {
-      this.ctx?.storage?.put("isDeleted", true);
+      this.ctx?.storage?.deleteAll();
     } catch (e) {}
 
     this.stopTimers();
+    if (this.pauseTimer) {
+      clearInterval(this.pauseTimer);
+      this.pauseTimer = null;
+    }
     for (const timeout of this.disconnectTimeouts.values()) {
       clearTimeout(timeout);
     }
     this.disconnectTimeouts.clear();
-    this.hostSessionId = null;
     this.state = this.initialState();
     this.state.phase = "closed";
 
@@ -215,7 +233,7 @@ export class CyberSiegeServer extends Server {
           );
         } catch (e) {}
         try {
-          conn.close();
+          conn.close(1000, "Room disposed");
         } catch (e) {}
       }
     } catch (e) {}
@@ -228,51 +246,95 @@ export class CyberSiegeServer extends Server {
     player.connected = false;
     player.disconnectedAt = Date.now();
     const sessionId = player.sessionId;
-    console.log(`[CyberSiegeServer] Connection closed: ${player.name} (${sessionId}) - 8s grace period`);
+    console.log(`[CyberSiegeServer] Connection closed: ${player.name} (${sessionId})`);
 
     if (this.disconnectTimeouts.has(sessionId)) {
       clearTimeout(this.disconnectTimeouts.get(sessionId));
+      this.disconnectTimeouts.delete(sessionId);
     }
 
-    // 8s grace period for unexpected socket drops / tab reloads
+    // SCENARIO 1: Combat is actively in progress -> 30s PAUSE MATCH FOR BOTH PLAYERS!
+    if (this.state.phase === "playing") {
+      if (!this.state.isPaused) {
+        this.state.isPaused = true;
+        this.state.pauseCountdown = 30;
+        this.state.pausedPlayerName = player.name;
+
+        // Stop economy and clock timers immediately while paused
+        this.stopTimers();
+
+        // Start 30-second countdown interval
+        this.pauseTimer = setInterval(() => {
+          if (!this.state.isPaused || this.state.phase !== "playing") {
+            if (this.pauseTimer) clearInterval(this.pauseTimer);
+            this.pauseTimer = null;
+            return;
+          }
+
+          this.state.pauseCountdown -= 1;
+
+          if (this.state.pauseCountdown <= 0) {
+            if (this.pauseTimer) clearInterval(this.pauseTimer);
+            this.pauseTimer = null;
+            console.log(`[CyberSiegeServer] 30s pause expired for: ${player.name}. Treating as forfeit.`);
+            this.removePlayer(player.id, false);
+            return;
+          }
+
+          this.broadcast(
+            JSON.stringify({
+              type: "pause-tick",
+              pauseCountdown: this.state.pauseCountdown,
+              pausedPlayerName: this.state.pausedPlayerName,
+            })
+          );
+        }, 1000);
+      }
+      this.saveState();
+      this.broadcastState();
+      return;
+    }
+
+    // SCENARIO 2: In Lobby or Game Over -> LOBBY IMMUNITY!
+    // Players freely switch tabs to Discord/YouTube while waiting.
+    // DO NOT REMOVE PLAYER! DO NOT DELETE ROOM!
+    // Set a 15-minute total room inactivity timeout:
     const timeout = setTimeout(() => {
       this.disconnectTimeouts.delete(sessionId);
-      const stillDisconnected = this.state.players.find(
-        (p) => p.sessionId === sessionId && !p.connected
-      );
-      if (stillDisconnected) {
-        console.log(`[CyberSiegeServer] Grace period expired for: ${stillDisconnected.name}`);
-        this.removePlayer(stillDisconnected.id, false);
+      const anyConnected = this.state.players.some((p) => !p.isAi && p.connected);
+      if (!anyConnected && (this.state.phase === "lobby" || this.state.phase === "game_over")) {
+        console.log(`[CyberSiegeServer] Room ${this.roomId} idle timeout (15 min) expired. Disposing room.`);
+        this.disposeRoom();
       }
-    }, 8000);
+    }, 15 * 60 * 1000); // 15 minutes
 
     this.disconnectTimeouts.set(sessionId, timeout);
+    this.saveState();
     this.broadcastState();
   }
 
   handleJoin(msg, sender) {
-    if (this.isDeleted || DELETED_ROOMS.has(this.roomId)) {
+    const sessionId = msg.sessionId || sender.id;
+    const isCreatorIntent = !!msg.isCreator;
+
+    // If room is closed or marked deleted:
+    if (this.isDeleted || this.state.phase === "closed") {
       try {
         sender.send(
           JSON.stringify({
             type: "room-closed",
-            reason: "This room has ended and no longer exists.",
+            reason: "This battle room does not exist or has ended.",
           })
         );
       } catch (e) {}
       try {
-        sender.close();
+        sender.close(1000, "Room closed");
       } catch (e) {}
       return;
     }
 
-    if (this.state.players.length === 0 && !this.hostSessionId) {
-      this.state = this.initialState();
-    }
-
-    const existing = msg.sessionId
-      ? this.state.players.find((p) => p.sessionId === msg.sessionId)
-      : null;
+    // 1. Check if this is an existing player reconnecting (by sessionId)
+    let existing = this.state.players.find((p) => p.sessionId === sessionId);
 
     if (existing) {
       existing.id = sender.id;
@@ -285,10 +347,37 @@ export class CyberSiegeServer extends Server {
         this.disconnectTimeouts.delete(existing.sessionId);
       }
 
-      // Preserve host status based on hostSessionId
-      if (this.hostSessionId === existing.sessionId || existing.slot === "p1") {
+      // Preserve host status based on state.hostSessionId or p1 slot
+      if (this.state.hostSessionId === existing.sessionId || existing.slot === "p1") {
         existing.isHost = true;
-        this.hostSessionId = existing.sessionId;
+        this.state.hostSessionId = existing.sessionId;
+      }
+
+      // If game was paused, resume if all human players are back!
+      if (this.state.isPaused && this.state.phase === "playing") {
+        const allHumansConnected = this.state.players
+          .filter((p) => !p.isAi)
+          .every((p) => p.connected);
+
+        if (allHumansConnected) {
+          if (this.pauseTimer) {
+            clearInterval(this.pauseTimer);
+            this.pauseTimer = null;
+          }
+          this.state.isPaused = false;
+          this.state.pauseCountdown = 30;
+          this.state.pausedPlayerName = null;
+
+          // Resume combat timers
+          this.startTimers();
+
+          this.broadcast(
+            JSON.stringify({
+              type: "match-resumed",
+              reason: "All commanders reconnected! Combat resumed.",
+            })
+          );
+        }
       }
 
       sender.send(
@@ -299,30 +388,91 @@ export class CyberSiegeServer extends Server {
           isHost: !!existing.isHost,
         })
       );
+      this.saveState();
       this.broadcastState();
       return;
     }
 
+    // 2. Not an existing player:
+    // If joining as Challenger via room code (not creator), but NO ROOM / HOST exists:
     const humanPlayers = this.state.players.filter((p) => !p.isAi);
-    if (humanPlayers.length >= 2) {
-      sender.send(JSON.stringify({ type: "room-full" }));
+    if (!isCreatorIntent && (!this.state.hostSessionId || humanPlayers.length === 0)) {
+      try {
+        sender.send(
+          JSON.stringify({
+            type: "room-closed",
+            reason: "Battle room does not exist or host has left.",
+          })
+        );
+      } catch (e) {}
+      try {
+        sender.close(1000, "Room not found");
+      } catch (e) {}
       return;
     }
 
-    const isFirst = humanPlayers.length === 0 || !this.hostSessionId;
-    const slot = isFirst ? "p1" : "p2";
-    const sessionId = msg.sessionId || sender.id;
-
-    if (isFirst) {
-      this.hostSessionId = sessionId;
+    // Capacity check: strictly 2 human players:
+    if (humanPlayers.length >= 2) {
+      try {
+        sender.send(
+          JSON.stringify({
+            type: "room-full",
+            reason: "Battle room is already full (2/2 commanders)!",
+          })
+        );
+      } catch (e) {}
+      try {
+        sender.close(1000, "Room full");
+      } catch (e) {}
+      return;
     }
 
-    const newPlayer = {
+    // 3. Room Creator joining:
+    if (isCreatorIntent) {
+      this.isDeleted = false;
+      this.state.hostSessionId = sessionId;
+      const hostPlayer = {
+        id: sender.id,
+        sessionId: sessionId,
+        name: msg.playerName || "Commander Alpha",
+        slot: "p1",
+        isHost: true,
+        connected: true,
+        baseHp: STARTING_HP,
+        gold: STARTING_GOLD,
+        incomeRate: STARTING_INCOME,
+        towers: [],
+        stats: { creepsSent: 0, bossesSent: 0, damageDealt: 0 },
+        isAi: false,
+      };
+
+      const existingP1Index = this.state.players.findIndex((p) => p.slot === "p1");
+      if (existingP1Index !== -1) {
+        this.state.players[existingP1Index] = hostPlayer;
+      } else {
+        this.state.players.unshift(hostPlayer);
+      }
+
+      sender.send(
+        JSON.stringify({
+          type: "player-id",
+          playerId: sender.id,
+          playerSlot: "p1",
+          isHost: true,
+        })
+      );
+      this.saveState();
+      this.broadcastState();
+      return;
+    }
+
+    // 4. Challenger joining (strictly p2, isHost: false):
+    const challengerPlayer = {
       id: sender.id,
       sessionId: sessionId,
-      name: msg.playerName || (slot === "p1" ? "Commander Alpha" : "Commander Omega"),
-      slot: slot,
-      isHost: isFirst,
+      name: msg.playerName || "Commander Omega",
+      slot: "p2",
+      isHost: false,
       connected: true,
       baseHp: STARTING_HP,
       gold: STARTING_GOLD,
@@ -332,21 +482,29 @@ export class CyberSiegeServer extends Server {
       isAi: false,
     };
 
-    this.state.players.push(newPlayer);
+    const existingP2Index = this.state.players.findIndex((p) => p.slot === "p2");
+    if (existingP2Index !== -1) {
+      this.state.players[existingP2Index] = challengerPlayer;
+    } else {
+      this.state.players.push(challengerPlayer);
+    }
+
     sender.send(
       JSON.stringify({
         type: "player-id",
         playerId: sender.id,
-        playerSlot: slot,
-        isHost: isFirst,
+        playerSlot: "p2",
+        isHost: false,
       })
     );
+    this.saveState();
     this.broadcastState();
   }
 
   handleStart(msg, sender) {
     const player = this.state.players.find((p) => p.id === sender.id);
-    if (!player || !player.isHost) return;
+    const isHost = !!player?.isHost || player?.sessionId === this.state.hostSessionId || player?.slot === "p1";
+    if (!player || !isHost) return;
 
     if (msg.aiMode) {
       this.state.isAiMatch = true;
@@ -367,7 +525,8 @@ export class CyberSiegeServer extends Server {
       }
     } else {
       // Multiplayer 1v1: Wait for 2 human players to be ready!
-      if (this.state.players.length < 2) return;
+      const humanPlayers = this.state.players.filter((p) => !p.isAi);
+      if (humanPlayers.length < 2) return;
       this.state.isAiMatch = false;
     }
 
@@ -387,6 +546,7 @@ export class CyberSiegeServer extends Server {
     });
 
     this.startTimers();
+    this.saveState();
     this.broadcastState();
   }
 

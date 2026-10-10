@@ -1,6 +1,6 @@
 // Cyber Siege - Futuristic Matchmaker Lobby Modal
 import { useState } from "react";
-import { Shield, Swords, Cpu, Users, Play, ArrowRight, Sparkles, Skull, BatteryCharging } from "lucide-react";
+import { Shield, Swords, Cpu, Users, Play, ArrowRight, Sparkles, Skull, BatteryCharging, X } from "lucide-react";
 
 export default function Lobby({
   playerName,
@@ -83,7 +83,7 @@ export default function Lobby({
             </div>
             <h3 className="mode-card-title">MULTIPLAYER DUEL</h3>
             <p className="mode-card-desc">
-              Real-time PartyKit room: share link or code with a friend to duel live!
+              Real-time 1v1 battle: share room code with a friend to duel live!
             </p>
 
             <div className="flex flex-col gap-2 w-full mt-2">
@@ -98,9 +98,34 @@ export default function Lobby({
                   placeholder="ROOM CODE"
                   value={joinCode}
                   onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && joinCode.trim().length >= 3) {
+                      onJoinRoom(joinCode.trim());
+                    }
+                  }}
                   maxLength={6}
                   className="join-input"
                 />
+                {joinCode && (
+                  <button
+                    onClick={() => setJoinCode("")}
+                    className="clear-code-btn"
+                    title="Clear Room Code"
+                    style={{
+                      background: "rgba(255, 255, 255, 0.08)",
+                      border: "1px solid rgba(255, 255, 255, 0.15)",
+                      borderRadius: "8px",
+                      padding: "0 10px",
+                      color: "#94a3b8",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
                 <button
                   disabled={joinCode.length < 3}
                   onClick={() => onJoinRoom(joinCode)}

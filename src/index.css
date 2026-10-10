@@ -1340,3 +1340,99 @@ body {
   border-radius: 4px;
 }
 
+/* ==========================================================================
+   TACTICAL COMBAT PAUSE MODAL (30s Window)
+   ========================================================================== */
+
+.combat-pause-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 7, 18, 0.88);
+  backdrop-filter: blur(12px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.pause-card {
+  background: rgba(13, 20, 38, 0.95);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  border-radius: 16px;
+  padding: 32px 28px;
+  max-width: 460px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 0 35px rgba(245, 158, 11, 0.25), inset 0 0 20px rgba(245, 158, 11, 0.05);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  animation: pauseCardPulse 2.5s infinite ease-in-out;
+}
+
+@keyframes pauseCardPulse {
+  0%, 100% {
+    box-shadow: 0 0 30px rgba(245, 158, 11, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 50px rgba(245, 158, 11, 0.45);
+  }
+}
+
+.pause-icon-ring {
+  font-size: 2.2rem;
+  background: rgba(245, 158, 11, 0.15);
+  border: 2px solid rgba(245, 158, 11, 0.5);
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pause-title {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  color: #fbbf24;
+  margin: 0;
+}
+
+.pause-subtitle {
+  font-size: 0.88rem;
+  color: #cbd5e1;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.pause-timer-box {
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 10px;
+  padding: 10px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin: 6px 0;
+}
+
+.pause-timer-val {
+  font-family: var(--font-mono);
+  font-size: 2rem;
+  font-weight: 900;
+  color: #f59e0b;
+  text-shadow: 0 0 16px rgba(245, 158, 11, 0.6);
+}
+
+.pause-footer-text {
+  font-size: 0.74rem;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.4;
+}
+

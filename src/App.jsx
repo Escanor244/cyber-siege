@@ -10,15 +10,10 @@ import { sound } from "./lib/soundFx";
 
 export default function App() {
   const [playerName, setPlayerName] = useState("Viper-01");
-  const [roomId, setRoomId] = useState(() => {
-    const params = new URLSearchParams(window.location.search);
-    return params.get("room") ? params.get("room").toUpperCase() : "";
-  });
+  const [roomId, setRoomId] = useState("");
+  const [inLobby, setInLobby] = useState(true);
   const [isSoloAi, setIsSoloAi] = useState(false);
-  const [inLobby, setInLobby] = useState(() => {
-    const params = new URLSearchParams(window.location.search);
-    return !params.get("room");
-  });
+  const [isHostRole, setIsHostRole] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
 
   // Tower Selection state
@@ -29,6 +24,7 @@ export default function App() {
     gameState,
     myPlayerId,
     mySlot,
+    isHost: isSocketHost,
     incomingCreeps,
     opponentIncomingCreeps,
     activeSabotages,
@@ -45,16 +41,29 @@ export default function App() {
     reportBotLeakDamage,
     restartGame,
     leaveRoom,
-  } = useCyberSocket(roomId, playerName, isSoloAi);
+  } = useCyberSocket(roomId, playerName, isSoloAi, isHostRole);
+
+  // Ensure browser address bar is always clean at /
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location.search) {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, []);
 
   const handleReturnLobby = () => {
     leaveRoom();
+    if (roomId) {
+      try {
+        sessionStorage.removeItem(`cybersiege_sess_${roomId}`);
+      } catch (e) {}
+    }
+    if (typeof window !== "undefined" && window.location.search) {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
     setInLobby(true);
     setRoomId("");
     setIsSoloAi(false);
-    try {
-      window.history.replaceState({}, "", window.location.pathname);
-    } catch (e) {}
+    setIsHostRole(false);
   };
 
   // Automatically return to main menu if host closes room or room is full
@@ -62,47 +71,54 @@ export default function App() {
     if (connectionStatus === "room_closed" || connectionStatus === "room_full") {
       if (roomId) {
         try {
-          sessionStorage.removeItem(`cybersiege_session_${roomId}`);
+          sessionStorage.removeItem(`cybersiege_sess_${roomId}`);
         } catch (e) {}
       }
       setInLobby(true);
       setRoomId("");
-      try {
-        window.history.replaceState({}, "", window.location.pathname);
-      } catch (e) {}
+      setIsHostRole(false);
     }
   }, [connectionStatus, roomId]);
 
-  // Resolve player & opponent states using persistent sessionId and slot
-  const sessionKey = roomId ? sessionStorage.getItem(`cybersiege_session_${roomId}`) : null;
+  // Resolve player & opponent states strictly based on role and slot
+  const sessionKey = roomId ? sessionStorage.getItem(`cybersiege_sess_${roomId}`) : null;
+  const p1Player = gameState?.players?.find((p) => p.slot === "p1");
+  const p2Player = gameState?.players?.find((p) => p.slot === "p2");
+
   const myPlayer =
     gameState?.players?.find((p) => (myPlayerId && p.id === myPlayerId) || (sessionKey && p.sessionId === sessionKey)) ||
-    gameState?.players?.find((p) => p.slot === mySlot) ||
-    gameState?.players?.[0] || {
-      id: "p1",
+    (isHostRole ? p1Player : p2Player) ||
+    {
+      id: isHostRole ? "p1" : "p2",
       name: playerName,
       gold: 250,
       incomeRate: 15,
       baseHp: 100,
       towers: [],
       stats: { creepsSent: 0 },
-      isHost: mySlot === "p1",
+      isHost: isHostRole,
+      slot: isHostRole ? "p1" : "p2",
     };
+
+  const isEffectiveHost = isHostRole || isSocketHost || !!myPlayer?.isHost || mySlot === "p1";
 
   const opponentPlayer =
     gameState?.players?.find((p) => p.id !== myPlayer?.id && (!sessionKey || p.sessionId !== sessionKey)) ||
-    gameState?.players?.[1] || {
-      id: "p2",
-      name: isSoloAi ? "Cyber-Vanguard AI" : "Waiting for Opponent...",
+    (isHostRole ? p2Player : p1Player) ||
+    {
+      id: isHostRole ? "p2" : "p1",
+      name: isSoloAi ? "Cyber-Vanguard AI" : (isHostRole ? "Waiting for Opponent..." : "Host Commander"),
       gold: 250,
       incomeRate: 15,
       baseHp: 100,
       towers: [],
       stats: { creepsSent: 0 },
+      slot: isHostRole ? "p2" : "p1",
     };
 
   // Lobby Handlers
   const handleStartSoloAi = () => {
+    setIsHostRole(true);
     setIsSoloAi(true);
     setInLobby(false);
     startGame(true);
@@ -110,19 +126,19 @@ export default function App() {
 
   const handleCreateRoom = () => {
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+    setIsHostRole(true);
     setRoomId(code);
     setIsSoloAi(false);
     setInLobby(false);
-    window.history.pushState({}, "", `?room=${code}`);
   };
 
   const handleJoinRoom = (code) => {
-    const clean = code.trim().toUpperCase();
+    const clean = (code || "").trim().toUpperCase();
     if (!clean) return;
+    setIsHostRole(false);
     setRoomId(clean);
     setIsSoloAi(false);
     setInLobby(false);
-    window.history.pushState({}, "", `?room=${clean}`);
   };
 
   const handleToggleSound = () => {
@@ -175,7 +191,7 @@ export default function App() {
           />
 
           {/* Multiplayer 1v1 Waiting Room Banner */}
-          {!isSoloAi && gameState?.phase === "lobby" && (
+          {!isSoloAi && (!gameState || gameState.phase === "lobby") && (
             <div className="room-lobby-banner">
               <div className="room-lobby-header">
                 <div>
@@ -189,21 +205,21 @@ export default function App() {
                       : "WAITING FOR OPPONENT TO CONNECT..."}
                   </h2>
                   <p className="text-xs text-slate-400">
-                    Share this room link with your friend. The room host can launch the duel once both commanders connect.
+                    Share your room code with your friend to duel!
                   </p>
                 </div>
 
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => {
-                      const url = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
-                      navigator.clipboard?.writeText(url);
+                      navigator.clipboard?.writeText(roomId);
                       sound.playCoin();
-                      alert("Room Invite Link Copied to Clipboard:\n" + url);
+                      alert(`Room Code [${roomId}] Copied to Clipboard!\nShare this code with your friend to join.`);
                     }}
                     className="copy-invite-btn"
+                    title="Copy 6-character room code"
                   >
-                    📋 COPY INVITE LINK
+                    📋 COPY ROOM CODE: {roomId}
                   </button>
 
                   <button
@@ -214,7 +230,7 @@ export default function App() {
                     🚪 LEAVE ROOM
                   </button>
 
-                  {myPlayer?.isHost ? (
+                  {isEffectiveHost ? (
                     <button
                       disabled={(gameState?.players?.length || 0) < 2}
                       onClick={() => startGame(false)}
@@ -237,21 +253,25 @@ export default function App() {
                 <div className="player-strip-card">
                   <span className="text-xs font-mono text-cyan-400 font-bold">SLOT 1 (P1):</span>
                   <span className="text-sm font-bold text-white">
-                    {gameState?.players?.[0]?.name || playerName} {gameState?.players?.[0]?.isHost ? "👑 HOST" : ""}
+                    {p1Player?.name || (isHostRole ? playerName : "Host Commander")} 👑 HOST
                   </span>
-                  <span className="strip-ready-tag">ONLINE</span>
+                  <span className={p1Player ? "strip-ready-tag" : "strip-waiting-tag"}>
+                    {p1Player ? "ONLINE" : "CONNECTING..."}
+                  </span>
                 </div>
 
                 <div className="player-strip-card">
                   <span className="text-xs font-mono text-fuchsia-400 font-bold">SLOT 2 (P2):</span>
-                  {gameState?.players?.[1] ? (
+                  {p2Player ? (
                     <>
-                      <span className="text-sm font-bold text-white">{gameState.players[1].name}</span>
+                      <span className="text-sm font-bold text-white">{p2Player.name}</span>
                       <span className="strip-ready-tag">ONLINE</span>
                     </>
                   ) : (
                     <>
-                      <span className="text-sm text-slate-500 italic">Waiting for challenger...</span>
+                      <span className="text-sm text-slate-500 italic">
+                        {!isHostRole && !p2Player ? `${playerName} (Connecting...)` : "Waiting for challenger..."}
+                      </span>
                       <span className="strip-waiting-tag">WAITING</span>
                     </>
                   )}
@@ -276,6 +296,7 @@ export default function App() {
               onLeakDamage={reportLeakDamage}
               activeSabotages={activeSabotages}
               playerSlot={mySlot}
+              isPaused={gameState?.isPaused}
             />
 
             {/* Sector 2: OPPONENT SECTOR (Live Synced View) */}
@@ -288,15 +309,40 @@ export default function App() {
               onLeakDamage={isSoloAi ? reportBotLeakDamage : () => {}}
               activeSabotages={activeSabotages}
               playerSlot={mySlot === "p1" ? "p2" : "p1"}
+              isPaused={gameState?.isPaused}
             />
           </main>
+
+          {/* 30s Tactical Match Pause Overlay */}
+          {gameState?.isPaused && gameState.phase === "playing" && (
+            <div className="combat-pause-modal">
+              <div className="pause-card">
+                <div className="pause-icon-ring">⏸️</div>
+                <h2 className="pause-title">COMBAT PAUSED</h2>
+                <p className="pause-subtitle">
+                  Commander <strong className="text-cyan-400">{gameState.pausedPlayerName || "Opponent"}</strong> disconnected or switched tabs.
+                </p>
+                <div className="pause-timer-box">
+                  <span className="text-xs text-slate-400 font-mono tracking-wider">AUTO-FORFEIT IN</span>
+                  <span className="pause-timer-val">{gameState.pauseCountdown ?? 30}s</span>
+                </div>
+                <p className="pause-footer-text">
+                  Combat will automatically resume the moment the commander reconnects.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Bottom HUD: 4 Distinct Tabs (Armory, Raids, Bosses/Sabotage, Power Grid) */}
           <ControlHUD
             playerGold={myPlayer.gold}
             selectedTowerType={selectedTowerType}
             onSelectTowerType={setSelectedTowerType}
-            selectedPlacedTower={selectedPlacedTower}
+            selectedPlacedTower={
+              selectedPlacedTower
+                ? myPlayer?.towers?.find((t) => t.id === selectedPlacedTower.id) || null
+                : null
+            }
             onCloseInspector={() => setSelectedPlacedTower(null)}
             onUpgradeTower={upgradeTower}
             onSellTower={(tid) => {

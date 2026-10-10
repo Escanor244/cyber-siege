@@ -1,16 +1,16 @@
 {
   "name": "cyber-siege",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.1",
   "type": "module",
   "scripts": {
     "dev": "vite --port 3000 --host",
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "party:dev": "partykit dev --port 1999",
+    "party:dev": "wrangler dev --port 1999",
     "party:deploy": "wrangler deploy",
-    "server:dev": "partykit dev --port 1999",
+    "server:dev": "wrangler dev --port 1999",
     "server:deploy": "wrangler deploy"
   },
   "dependencies": {

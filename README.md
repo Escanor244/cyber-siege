@@ -82,11 +82,14 @@ Cloudflare acquired PartyKit and now hosts PartyServer directly on your free Clo
    - **Framework Preset**: Vite (detected automatically)
    - **Build Command**: `npm run build`
    - **Output Directory**: `dist`
-4. Expand **"Environment Variables"** and add:
-   - **Key**: `VITE_PARTYKIT_HOST`
-   - **Value**: `cyber-siege.<your-username>.partykit.dev` *(from Step 1)*
+4. Expand **"Environment Variables"** (or drag & drop your `.env` file):
+   ```env
+   VITE_PARTYKIT_HOST=cyber-siege.<your-subdomain>.workers.dev
+   ```
 5. Click **"Deploy"**.
 6. In ~30 seconds, Vercel will give you a live production link (e.g. `https://cyber-siege.vercel.app`)!
+
+> **Tip**: You can also copy [`.env.example`](file:///c:/Users/deepa/OneDrive/Desktop/games/td/cyber-siege/.env.example) to `.env` or drag-and-drop it into the Vercel environment variables box!
 
 ---
 

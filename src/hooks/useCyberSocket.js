@@ -15,10 +15,11 @@ import {
 
 const DEFAULT_PARTY_HOST = "localhost:1999";
 
-export function useCyberSocket(roomId, playerName, isSoloAi = false) {
+export function useCyberSocket(roomId, playerName, isSoloAi = false, isHostRole = false) {
   const [gameState, setGameState] = useState(null);
   const [myPlayerId, setMyPlayerId] = useState("");
-  const [mySlot, setMySlot] = useState("p1"); // 'p1' | 'p2'
+  const [mySlot, setMySlot] = useState(isHostRole ? "p1" : "p2"); // 'p1' | 'p2'
+  const [isHost, setIsHost] = useState(isHostRole);
   const [incomingCreeps, setIncomingCreeps] = useState([]);
   const [opponentIncomingCreeps, setOpponentIncomingCreeps] = useState([]);
   const [activeSabotages, setActiveSabotages] = useState([]); // { type, duration, timestamp, targetSlot }
@@ -31,6 +32,8 @@ export function useCyberSocket(roomId, playerName, isSoloAi = false) {
   const localWaveTimerRef = useRef(null);
 
   // Stable refs to prevent tearing down WebSocket on re-renders
+  const isHostRoleRef = useRef(isHostRole);
+  isHostRoleRef.current = isHostRole;
   const mySlotRef = useRef(mySlot);
   mySlotRef.current = mySlot;
   const myPlayerIdRef = useRef(myPlayerId);
@@ -43,16 +46,19 @@ export function useCyberSocket(roomId, playerName, isSoloAi = false) {
     setTimeout(() => setAlertBanner(null), 3500);
   };
 
-  // Generate or retrieve persistent session ID (sessionStorage allows 2 tabs to play 1v1 locally)
-  const getSessionId = useCallback(() => {
-    const key = `cybersiege_session_${roomId}`;
-    let sessionId = sessionStorage.getItem(key);
-    if (!sessionId) {
-      sessionId = `sess_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
-      sessionStorage.setItem(key, sessionId);
+  // Generate or retrieve persistent session ID unique to this specific browser tab instance
+  const getSessionId = useCallback((rId) => {
+    if (typeof window !== "undefined" && rId) {
+      const storageKey = `cybersiege_sess_${rId}`;
+      let sid = sessionStorage.getItem(storageKey);
+      if (!sid) {
+        sid = `cs_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
+        sessionStorage.setItem(storageKey, sid);
+      }
+      return sid;
     }
-    return sessionId;
-  }, [roomId]);
+    return `sess_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
+  }, []);
 
   // Solo AI Local Simulation Engine
   const initLocalAiGame = useCallback(() => {
@@ -324,11 +330,13 @@ export function useCyberSocket(roomId, playerName, isSoloAi = false) {
       return;
     }
 
-    const host =
+    let host =
       import.meta.env.VITE_PARTYKIT_HOST ||
       window.__PARTYKIT_HOST__ ||
       DEFAULT_PARTY_HOST;
-    const sessionId = getSessionId();
+    // Auto-strip https:// or trailing slash if user included them
+    host = host.replace(/^https?:\/\//, "").replace(/\/+$/, "");
+    const sessionId = getSessionId(roomId);
 
     try {
       const socket = new PartySocket({
@@ -342,6 +350,7 @@ export function useCyberSocket(roomId, playerName, isSoloAi = false) {
         socket.send(
           JSON.stringify({
             type: "join",
+            isCreator: isHostRoleRef.current,
             playerName: playerNameRef.current || "Commander",
             sessionId,
           })
@@ -355,8 +364,9 @@ export function useCyberSocket(roomId, playerName, isSoloAi = false) {
           if (msg.type === "player-id") {
             setMyPlayerId(msg.playerId);
             myPlayerIdRef.current = msg.playerId;
-            setMySlot(msg.playerSlot || "p1");
-            mySlotRef.current = msg.playerSlot || "p1";
+            setMySlot(msg.playerSlot || (isHostRoleRef.current ? "p1" : "p2"));
+            mySlotRef.current = msg.playerSlot || (isHostRoleRef.current ? "p1" : "p2");
+            setIsHost(!!msg.isHost);
           }
 
           if (msg.type === "state-update") {
@@ -372,12 +382,14 @@ export function useCyberSocket(roomId, playerName, isSoloAi = false) {
             sound.playAlarm();
             showAlert(`⚠️ ${msg.reason || "The host left the lobby. Room has been closed."}`, "danger");
             if (socketRef.current) {
-              socketRef.current.close();
+              try {
+                socketRef.current.close();
+              } catch (e) {}
               socketRef.current = null;
             }
             if (roomId) {
               try {
-                sessionStorage.removeItem(`cybersiege_session_${roomId}`);
+                sessionStorage.removeItem(`cybersiege_sess_${roomId}`);
               } catch (e) {}
             }
             setIncomingCreeps([]);
@@ -390,9 +402,11 @@ export function useCyberSocket(roomId, playerName, isSoloAi = false) {
 
           if (msg.type === "room-full") {
             sound.playAlarm();
-            showAlert("⚠️ Battle room is already full (2/2 commanders)!", "danger");
+            showAlert(`⚠️ ${msg.reason || "Battle room is already full (2/2 commanders)!"}`, "danger");
             if (socketRef.current) {
-              socketRef.current.close();
+              try {
+                socketRef.current.close();
+              } catch (e) {}
               socketRef.current = null;
             }
             setConnectionStatus("room_full");
@@ -405,6 +419,34 @@ export function useCyberSocket(roomId, playerName, isSoloAi = false) {
             setActiveSabotages([]);
             setGameState(msg.state);
             showAlert("🔄 REMATCH: RETURNED TO LOBBY. READY FOR COMBAT!", "info");
+          }
+
+          if (msg.type === "pause-tick") {
+            setGameState((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    isPaused: true,
+                    pauseCountdown: msg.pauseCountdown,
+                    pausedPlayerName: msg.pausedPlayerName,
+                  }
+                : prev
+            );
+          }
+
+          if (msg.type === "match-resumed") {
+            sound.playShield?.();
+            showAlert("⚡ COMBAT RESUMED: ALL COMMANDERS CONNECTED!", "info");
+            setGameState((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    isPaused: false,
+                    pauseCountdown: 30,
+                    pausedPlayerName: null,
+                  }
+                : prev
+            );
           }
 
           if (msg.type === "economy-tick") {
@@ -971,7 +1013,7 @@ export function useCyberSocket(roomId, playerName, isSoloAi = false) {
     // 2. Discard persistent session key for this room
     if (roomId) {
       try {
-        sessionStorage.removeItem(`cybersiege_session_${roomId}`);
+        sessionStorage.removeItem(`cybersiege_sess_${roomId}`);
       } catch (e) {}
     }
 
@@ -992,6 +1034,7 @@ export function useCyberSocket(roomId, playerName, isSoloAi = false) {
     gameState,
     myPlayerId,
     mySlot,
+    isHost,
     incomingCreeps,
     opponentIncomingCreeps,
     activeSabotages,

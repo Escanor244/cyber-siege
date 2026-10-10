@@ -26,7 +26,7 @@ export default function HeaderBar({
   };
 
   const copyRoomLink = () => {
-    navigator.clipboard.writeText(window.location.href);
+    navigator.clipboard.writeText(roomId);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -59,7 +59,7 @@ export default function HeaderBar({
               <span>ROOM: {roomId}</span>
               <button
                 onClick={copyRoomLink}
-                title="Copy room invite link"
+                title="Copy 6-character room code"
                 className="copy-btn"
               >
                 {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
@@ -120,8 +120,8 @@ export default function HeaderBar({
           )}
         </button>
 
-        {/* Leave Match / Return to Lobby Button: only shown during active combat play */}
-        {onLeaveRoom && isPlaying && (
+        {/* Leave Match / Return to Lobby Button */}
+        {onLeaveRoom && (
           <button
             onClick={onLeaveRoom}
             className="icon-btn hover:text-red-400"

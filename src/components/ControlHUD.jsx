@@ -36,6 +36,9 @@ export default function ControlHUD({
 
   const handleSelectTab = (tab) => {
     setActiveTab(tab);
+    if (onCloseInspector) {
+      onCloseInspector();
+    }
     if (tab !== "defense") {
       onSelectTowerType(null);
     }
