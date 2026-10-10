@@ -660,7 +660,7 @@ export class CyberSiegeServer extends Server {
     if (!player || this.state.phase !== "playing") return;
 
     const tower = player.towers.find((t) => t.id === msg.towerId);
-    if (!tower) return;
+    if (!tower || tower.level >= 100) return;
 
     const baseCost = TOWERS[tower.type]?.cost || 100;
     const upgradeCost = Math.floor(baseCost * 0.8 * tower.level);

@@ -7,8 +7,10 @@ import {
   PATH_WAYPOINTS,
   TOWERS,
   getCreepDefinition,
+  MAX_CREEP_LEVEL,
 } from "../lib/constants";
 import { sound } from "../lib/soundFx";
+import { drawTowerAsset, drawCreepAsset, getEntityTier } from "../lib/gameAssets";
 
 export default function GameBoard({
   isInteractive = true,
@@ -103,8 +105,8 @@ export default function GameBoard({
         const waveNum = wave.waveNumber || 1;
         // Regular creeps: Level rises every 2 waves (+25% HP) | Bosses: Level rises every 4 waves (+35% HP)
         const creepLevel = isBoss
-          ? Math.max(1, Math.min(5, Math.ceil(waveNum / 4)))
-          : Math.max(1, Math.min(5, Math.ceil(waveNum / 2)));
+          ? Math.max(1, Math.min(MAX_CREEP_LEVEL, Math.ceil(waveNum / 4)))
+          : Math.max(1, Math.min(MAX_CREEP_LEVEL, Math.ceil(waveNum / 2)));
         const hpMultiplier = isBoss
           ? 1 + (creepLevel - 1) * 0.35
           : 1 + (creepLevel - 1) * 0.25;
@@ -677,34 +679,8 @@ export default function GameBoard({
         ctx.stroke();
       }
 
-      // Base Pedestal
-      ctx.fillStyle = "#1e293b";
-      ctx.strokeStyle = isSelected ? "#00f0ff" : config.accent;
-      ctx.lineWidth = isSelected ? 2.5 : 1.5;
-      ctx.fillRect(tx - 20, ty - 20, 40, 40);
-      ctx.strokeRect(tx - 20, ty - 20, 40, 40);
-
-      // Rotating Turret Head
-      ctx.save();
-      ctx.translate(tx, ty);
-      ctx.rotate(tower.targetAngle || 0);
-
-      ctx.fillStyle = config.color;
-      ctx.fillRect(0, -4, 18, 8);
-
-      ctx.beginPath();
-      ctx.arc(0, 0, 11, 0, Math.PI * 2);
-      ctx.fillStyle = "#0f172a";
-      ctx.fill();
-      ctx.strokeStyle = config.color;
-      ctx.lineWidth = 2;
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.arc(0, 0, 4.5, 0, Math.PI * 2);
-      ctx.fillStyle = config.color;
-      ctx.fill();
-      ctx.restore();
+      // Render Tower Pedestal and Weapon Turret (3-Tier Visual Asset)
+      drawTowerAsset(ctx, tower, config, tx, ty, isSelected, time);
 
       // If EMP stunned, draw crackling blue electric arcs
       if (isEmped) {
@@ -719,11 +695,12 @@ export default function GameBoard({
         ctx.fillText("STUNNED", tx - 22, ty - 24);
       }
 
-      // Tower Level Badge
+      // Tower Level Badge (Color-coded by Tier)
       if (tower.level > 1) {
-        ctx.fillStyle = "#fbbf24";
-        ctx.font = "bold 10px Orbitron, sans-serif";
-        ctx.fillText(`Lv.${tower.level}`, tx - 12, ty + 18);
+        const tTier = getEntityTier(tower.level);
+        ctx.fillStyle = tTier === 3 ? "#f59e0b" : tTier === 2 ? "#38bdf8" : "#fbbf24";
+        ctx.font = `bold ${tTier === 3 ? "11px" : "10px"} Orbitron, sans-serif`;
+        ctx.fillText(`Lv.${tower.level}`, tx - 12, ty + 20);
       }
     });
 
@@ -742,20 +719,8 @@ export default function GameBoard({
         ctx.stroke();
       }
 
-      // Body Orb
-      ctx.fillStyle = creep.color;
-      ctx.shadowColor = creep.color;
-      ctx.shadowBlur = creep.isBoss ? 16 : 8;
-      ctx.beginPath();
-      ctx.arc(0, 0, creep.radius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-
-      // Inner Core
-      ctx.fillStyle = "#ffffff";
-      ctx.beginPath();
-      ctx.arc(0, 0, creep.radius * 0.45, 0, Math.PI * 2);
-      ctx.fill();
+      // Bespoke Monster/Boss Visual Asset (3-Tier Evolution)
+      drawCreepAsset(ctx, creep, time);
 
       // Health Bar
       const hpPct = Math.max(0, creep.hp / creep.maxHp);

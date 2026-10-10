@@ -18,6 +18,8 @@ export const STARTING_GOLD = 250;
 export const STARTING_HP = 100;
 export const STARTING_INCOME = 15;
 export const NATURAL_WAVE_INTERVAL_SEC = 22; // Natural timed wave arrives every 22s
+export const MAX_TOWER_LEVEL = 100;
+export const MAX_CREEP_LEVEL = 100;
 
 // 1. DEFENSE TOWERS
 export const TOWERS = {

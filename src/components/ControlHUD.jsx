@@ -7,6 +7,8 @@ import {
   BOSS_SUMMONS,
   SABOTAGE_SPELLS,
   ECO_UPGRADES,
+  MAX_TOWER_LEVEL,
+  MAX_CREEP_LEVEL,
 } from "../lib/constants";
 import {
   Shield,
@@ -158,8 +160,8 @@ export default function ControlHUD({
           <div className="hud-grid grid-4col">
             {Object.values(CREEP_RAIDS).map((c) => {
               const canAfford = playerGold >= c.cost;
-              // Regular creeps: Level rises every 2 waves (+25% HP per tier)
-              const creepLevel = Math.max(1, Math.min(5, Math.ceil(currentWave / 2)));
+              // Regular creeps: Level rises every 2 waves (+25% HP per tier) capped at Lv. 100
+              const creepLevel = Math.max(1, Math.min(MAX_CREEP_LEVEL, Math.ceil(currentWave / 2)));
               const hpMultiplier = 1 + (creepLevel - 1) * 0.25;
               const scaledHp = Math.round(c.hp * hpMultiplier);
 
@@ -206,8 +208,8 @@ export default function ControlHUD({
             {/* Bosses */}
             {Object.values(BOSS_SUMMONS).map((b) => {
               const canAfford = playerGold >= b.cost;
-              // Bosses: Level rises every 4 waves (+35% HP per tier)
-              const bossLevel = Math.max(1, Math.min(5, Math.ceil(currentWave / 4)));
+              // Bosses: Level rises every 4 waves (+35% HP per tier) capped at Lv. 100
+              const bossLevel = Math.max(1, Math.min(MAX_CREEP_LEVEL, Math.ceil(currentWave / 4)));
               const bossHpMultiplier = 1 + (bossLevel - 1) * 0.35;
               const scaledBossHp = Math.round(b.hp * bossHpMultiplier);
 
@@ -311,9 +313,10 @@ export default function ControlHUD({
             {(() => {
               const config = TOWERS[selectedPlacedTower.type];
               if (!config) return null;
+              const isMaxLevel = selectedPlacedTower.level >= MAX_TOWER_LEVEL;
               const upgradeCost = Math.floor(config.cost * 0.8 * selectedPlacedTower.level);
               const sellRefund = Math.floor(config.cost * 0.7 * selectedPlacedTower.level);
-              const canUpgrade = playerGold >= upgradeCost;
+              const canUpgrade = !isMaxLevel && playerGold >= upgradeCost;
 
               return (
                 <div className="inspector-content">
@@ -346,7 +349,7 @@ export default function ControlHUD({
                       className={`action-btn upgrade-btn ${!canUpgrade ? "btn-disabled" : ""}`}
                     >
                       <ArrowUpCircle className="w-4 h-4" />
-                      <span>UPGRADE (${upgradeCost})</span>
+                      <span>{isMaxLevel ? "⭐ MAX LV.100" : `UPGRADE ($${upgradeCost})`}</span>
                     </button>
                     <button
                       onClick={() => onSellTower(selectedPlacedTower.id)}

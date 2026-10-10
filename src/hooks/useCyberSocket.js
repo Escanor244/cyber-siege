@@ -748,7 +748,7 @@ export function useCyberSocket(roomId, playerName, isSoloAi = false, isHostRole 
           if (!prev) return prev;
           const me = prev.players.find((p) => p.id === myPlayerId);
           const tower = me?.towers.find((t) => t.id === towerId);
-          if (!tower) return prev;
+          if (!tower || tower.level >= 100) return prev;
           const cost = Math.floor((TOWERS[tower.type]?.cost || 100) * 0.8 * tower.level);
           if (me.gold < cost) return prev;
           sound.playUpgrade();
@@ -759,7 +759,9 @@ export function useCyberSocket(roomId, playerName, isSoloAi = false, isHostRole 
                 ? {
                     ...p,
                     gold: p.gold - cost,
-                    towers: p.towers.map((t) => (t.id === towerId ? { ...t, level: t.level + 1 } : t)),
+                    towers: p.towers.map((t) =>
+                      t.id === towerId ? { ...t, level: Math.min(100, t.level + 1) } : t
+                    ),
                   }
                 : p
             ),
