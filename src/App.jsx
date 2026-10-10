@@ -19,6 +19,7 @@ export default function App() {
   // Tower Selection state
   const [selectedTowerType, setSelectedTowerType] = useState(null);
   const [selectedPlacedTower, setSelectedPlacedTower] = useState(null);
+  const [copiedCode, setCopiedCode] = useState(false);
 
   const {
     gameState,
@@ -30,6 +31,7 @@ export default function App() {
     activeSabotages,
     connectionStatus,
     alertBanner,
+    showAlert,
     startGame,
     buildTower,
     upgradeTower,
@@ -214,12 +216,14 @@ export default function App() {
                     onClick={() => {
                       navigator.clipboard?.writeText(roomId);
                       sound.playCoin();
-                      alert(`Room Code [${roomId}] Copied to Clipboard!\nShare this code with your friend to join.`);
+                      setCopiedCode(true);
+                      setTimeout(() => setCopiedCode(false), 2200);
+                      showAlert(`📋 ROOM CODE [${roomId}] COPIED TO CLIPBOARD!`, "success");
                     }}
-                    className="copy-invite-btn"
+                    className={`copy-invite-btn ${copiedCode ? "btn-copied" : ""}`}
                     title="Copy 6-character room code"
                   >
-                    📋 COPY ROOM CODE: {roomId}
+                    {copiedCode ? `✅ COPIED: ${roomId}` : `📋 COPY ROOM CODE: ${roomId}`}
                   </button>
 
                   <button
@@ -335,6 +339,7 @@ export default function App() {
 
           {/* Bottom HUD: 4 Distinct Tabs (Armory, Raids, Bosses/Sabotage, Power Grid) */}
           <ControlHUD
+            currentWave={gameState?.currentWaveNumber || 1}
             playerGold={myPlayer.gold}
             selectedTowerType={selectedTowerType}
             onSelectTowerType={setSelectedTowerType}

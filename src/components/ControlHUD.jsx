@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 
 export default function ControlHUD({
+  currentWave = 1,
   playerGold,
   selectedTowerType,
   onSelectTowerType,
@@ -157,6 +158,10 @@ export default function ControlHUD({
           <div className="hud-grid grid-4col">
             {Object.values(CREEP_RAIDS).map((c) => {
               const canAfford = playerGold >= c.cost;
+              // Regular creeps: Level rises every 2 waves (+25% HP per tier)
+              const creepLevel = Math.max(1, Math.min(5, Math.ceil(currentWave / 2)));
+              const hpMultiplier = 1 + (creepLevel - 1) * 0.25;
+              const scaledHp = Math.round(c.hp * hpMultiplier);
 
               return (
                 <button
@@ -170,15 +175,24 @@ export default function ControlHUD({
                   style={{ "--accent": c.color }}
                 >
                   <div className="card-top">
-                    <span className="units-badge">{c.count}x UNITS</span>
+                    <span className={`level-badge ${creepLevel >= 3 ? "lv-high" : ""}`}>
+                      LV.{creepLevel} ({c.count}x)
+                    </span>
                     <span className="card-title">{c.name}</span>
                     <span className="cost-tag">${c.cost}</span>
                   </div>
                   <div className="card-desc">{c.desc}</div>
                   <div className="card-stats">
-                    <span>HP: {c.hp}</span>
+                    <span className="font-bold text-white">
+                      HP: {scaledHp}{" "}
+                      {creepLevel > 1 && (
+                        <span className="text-amber-400 font-normal">
+                          (+{Math.round((hpMultiplier - 1) * 100)}%)
+                        </span>
+                      )}
+                    </span>
                     <span>SPD: {c.speed}</span>
-                    <span className="text-cyan-400">➔ SPAM ENEMY</span>
+                    <span className="text-cyan-400 font-bold">➔ SPAM</span>
                   </div>
                 </button>
               );
@@ -192,6 +206,11 @@ export default function ControlHUD({
             {/* Bosses */}
             {Object.values(BOSS_SUMMONS).map((b) => {
               const canAfford = playerGold >= b.cost;
+              // Bosses: Level rises every 4 waves (+35% HP per tier)
+              const bossLevel = Math.max(1, Math.min(5, Math.ceil(currentWave / 4)));
+              const bossHpMultiplier = 1 + (bossLevel - 1) * 0.35;
+              const scaledBossHp = Math.round(b.hp * bossHpMultiplier);
+
               return (
                 <button
                   key={b.id}
@@ -203,14 +222,21 @@ export default function ControlHUD({
                   className={`card-btn boss-card ${!canAfford ? "card-disabled" : ""}`}
                 >
                   <div className="card-top">
-                    <span className="boss-badge">💀 BOSS</span>
+                    <span className="boss-level-badge">💀 BOSS LV.{bossLevel}</span>
                     <span className="card-title">{b.name}</span>
                     <span className="cost-tag">${b.cost}</span>
                   </div>
                   <div className="card-desc">{b.desc}</div>
                   <div className="card-stats">
-                    <span>HP: {b.hp}</span>
-                    <span className="text-red-400">LEAK: -{b.leakDamage} HP</span>
+                    <span className="font-bold text-white">
+                      HP: {scaledBossHp.toLocaleString()}{" "}
+                      {bossLevel > 1 && (
+                        <span className="text-red-400 font-normal">
+                          (+{Math.round((bossHpMultiplier - 1) * 100)}%)
+                        </span>
+                      )}
+                    </span>
+                    <span className="text-red-400 font-bold">LEAK: -{b.leakDamage} HP</span>
                   </div>
                 </button>
               );

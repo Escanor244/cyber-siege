@@ -99,6 +99,19 @@ export default function GameBoard({
         const count = wave.count || creepConfig.count || 1;
         const isBoss = wave.isBoss || creepConfig.isBoss;
 
+        // Wave Escalation / Monster Level Scaling
+        const waveNum = wave.waveNumber || 1;
+        // Regular creeps: Level rises every 2 waves (+25% HP) | Bosses: Level rises every 4 waves (+35% HP)
+        const creepLevel = isBoss
+          ? Math.max(1, Math.min(5, Math.ceil(waveNum / 4)))
+          : Math.max(1, Math.min(5, Math.ceil(waveNum / 2)));
+        const hpMultiplier = isBoss
+          ? 1 + (creepLevel - 1) * 0.35
+          : 1 + (creepLevel - 1) * 0.25;
+        const bountyMultiplier = 1 + (creepLevel - 1) * 0.20; // +20% bounty per tier
+        const scaledHp = Math.round(creepConfig.hp * hpMultiplier);
+        const scaledBounty = Math.round((creepConfig.bounty || 10) * bountyMultiplier);
+
         for (let i = 0; i < count; i++) {
           const timeoutId = setTimeout(() => {
             // Cap active creeps to prevent lag if tab was backgrounded
@@ -107,8 +120,10 @@ export default function GameBoard({
               id: `creep_${Date.now()}_${Math.random()}`,
               type: wave.type,
               config: creepConfig,
-              hp: creepConfig.hp,
-              maxHp: creepConfig.hp,
+              level: creepLevel,
+              hp: scaledHp,
+              maxHp: scaledHp,
+              bounty: scaledBounty,
               speed: creepConfig.speed,
               x: pixelPath[0].x,
               y: pixelPath[0].y,
@@ -479,7 +494,7 @@ export default function GameBoard({
       createExplosion(creep.x, creep.y, creep.color, creep.isBoss ? 35 : 18);
 
       floatingTextsRef.current.push({
-        text: `+$${creep.config.bounty || 10}`,
+        text: `+$${creep.bounty || creep.config.bounty || 10}`,
         x: creep.x,
         y: creep.y - 18,
         color: "#fbbf24",
@@ -753,11 +768,15 @@ export default function GameBoard({
       ctx.fillStyle = hpPct > 0.5 ? "#22c55e" : hpPct > 0.25 ? "#f59e0b" : "#ef4444";
       ctx.fillRect(-barW / 2, barY, barW * hpPct, barH);
 
-      // Boss Label
+      // Boss & Level Labels
       if (creep.isBoss) {
         ctx.fillStyle = "#ef4444";
         ctx.font = "bold 9px Orbitron, sans-serif";
-        ctx.fillText(`💀 BOSS: ${creep.hp}/${creep.maxHp}`, -barW / 2, barY - 4);
+        ctx.fillText(`💀 BOSS Lv.${creep.level || 1}: ${creep.hp}/${creep.maxHp}`, -barW / 2, barY - 4);
+      } else if ((creep.level || 1) > 1) {
+        ctx.fillStyle = creep.level >= 3 ? "#ef4444" : "#f59e0b";
+        ctx.font = "bold 8px Orbitron, sans-serif";
+        ctx.fillText(`Lv.${creep.level}`, -barW / 2, barY - 3);
       }
 
       // Shield Aura (Aegis Vanguard)

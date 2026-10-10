@@ -482,6 +482,36 @@ body {
   font-weight: 700;
 }
 
+.level-badge {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  background: rgba(0, 240, 255, 0.15);
+  color: var(--neon-cyan);
+  border: 1px solid rgba(0, 240, 255, 0.35);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.level-badge.lv-high {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.45);
+}
+
+.boss-level-badge {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  background: rgba(239, 68, 68, 0.25);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.6);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+  text-shadow: 0 0 6px rgba(239, 68, 68, 0.5);
+}
+
 .card-title {
   font-family: var(--font-display);
   font-size: 0.78rem;
@@ -1213,6 +1243,13 @@ body {
   box-shadow: 0 0 25px rgba(239, 68, 68, 0.5);
 }
 
+.alert-success {
+  background: rgba(6, 44, 28, 0.95);
+  border: 1px solid #10b981;
+  color: #a7f3d0;
+  box-shadow: 0 0 25px rgba(16, 185, 129, 0.55);
+}
+
 @keyframes alert-slide {
   from {
     opacity: 0;
@@ -1272,6 +1309,13 @@ body {
 .copy-invite-btn:hover {
   background: rgba(255, 255, 255, 0.16);
   border-color: #ffffff;
+}
+
+.copy-invite-btn.btn-copied {
+  background: rgba(16, 185, 129, 0.25) !important;
+  border-color: #10b981 !important;
+  color: #34d399 !important;
+  box-shadow: 0 0 16px rgba(16, 185, 129, 0.4);
 }
 
 .launch-duel-btn {

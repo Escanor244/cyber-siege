@@ -730,6 +730,7 @@ export class CyberSiegeServer extends Server {
         creepType: msg.creepType,
         count: unitDef.count || 1,
         isBoss: !!unitDef.isBoss,
+        waveNumber: this.state.currentWaveNumber || 1,
         senderGold: senderPlayer.gold,
       })
     );
@@ -966,6 +967,7 @@ export class CyberSiegeServer extends Server {
             creepType: choice,
             count: def.count || 1,
             isBoss: !!def.isBoss,
+            waveNumber: this.state.currentWaveNumber || 1,
             senderGold: bot.gold,
           })
         );

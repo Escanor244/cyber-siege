@@ -152,6 +152,7 @@ export function useCyberSocket(roomId, playerName, isSoloAi = false, isHostRole 
               type: entry.type,
               count,
               isBoss: !!def.isBoss,
+              waveNumber: nextWaveNum,
             };
             setIncomingCreeps((ic) => [...ic, waveData]);
             setOpponentIncomingCreeps((oic) => [...oic, waveData]);
@@ -248,6 +249,7 @@ export function useCyberSocket(roomId, playerName, isSoloAi = false, isHostRole 
                 type: choice,
                 count: def.count || 1,
                 isBoss: !!def.isBoss,
+                waveNumber: prev.currentWaveNumber || 1,
               },
             ]);
           }
@@ -491,6 +493,7 @@ export function useCyberSocket(roomId, playerName, isSoloAi = false, isHostRole 
                   type: entry.type,
                   count,
                   isBoss: !!def.isBoss,
+                  waveNumber: msg.waveNumber || 1,
                 };
                 setIncomingCreeps((ic) => [...ic, waveData]);
                 setOpponentIncomingCreeps((oic) => [...oic, waveData]);
@@ -563,6 +566,7 @@ export function useCyberSocket(roomId, playerName, isSoloAi = false, isHostRole 
               type: msg.creepType,
               count: msg.count,
               isBoss: msg.isBoss,
+              waveNumber: msg.waveNumber || 1,
             };
 
             if (msg.targetSlot === mySlotRef.current) {
@@ -819,6 +823,7 @@ export function useCyberSocket(roomId, playerName, isSoloAi = false, isHostRole 
               type: creepType,
               count: def.count || 1,
               isBoss: !!def.isBoss,
+              waveNumber: gameState?.currentWaveNumber || 1,
             },
           ]);
 
@@ -1040,6 +1045,7 @@ export function useCyberSocket(roomId, playerName, isSoloAi = false, isHostRole 
     activeSabotages,
     connectionStatus,
     alertBanner,
+    showAlert,
     startGame,
     buildTower,
     upgradeTower,
