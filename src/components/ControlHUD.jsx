@@ -1,142 +1,78 @@
-// Cyber Siege - Bottom HUD Control Center
-// Distinct Tabs: 1. Defense Armory | 2. Monster Raids | 3. Bosses & Sabotage | 4. Power Grid
-import { useState, useEffect } from "react";
-import {
-  TOWERS,
-  CREEP_RAIDS,
-  BOSS_SUMMONS,
-  SABOTAGE_SPELLS,
-  ECO_UPGRADES,
-  MAX_TOWER_LEVEL,
-  MAX_CREEP_LEVEL,
-} from "../lib/constants";
-import {
-  Shield,
-  Swords,
-  Skull,
-  Zap,
-  ArrowUpCircle,
-  Trash2,
-  X,
-  BatteryCharging,
-} from "lucide-react";
+// Bottom HUD: Defense Armory | Monster Raids | Bosses & Sabotage | Power Grid,
+// plus the tower inspector. Availability uses the same validators as the server.
+import { useState } from "react";
+import { Shield, Swords, Skull, ArrowUpCircle, Trash2, X, BatteryCharging, Crosshair } from "lucide-react";
+import { TOWERS, MAX_TOWER_LEVEL } from "../shared/config/towers.js";
+import { CREEP_RAIDS, BOSS_SUMMONS } from "../shared/config/creeps.js";
+import { SABOTAGE_SPELLS } from "../shared/config/spells.js";
+import { ECO_UPGRADES } from "../shared/config/economy.js";
+import { TARGET_MODES } from "../shared/config/rules.js";
+import { creepLevel, creepHpMultiplier, upgradeCost, sellRefund, towerDamage, towerRange } from "../shared/balance.js";
+import * as V from "../shared/rules/validate.js";
+import { matchups } from "../shared/sim/damage.js";
+import { useTicker } from "../lib/useTicker.js";
 
-export default function ControlHUD({
-  currentWave = 1,
-  playerGold,
-  selectedTowerType,
-  onSelectTowerType,
-  selectedPlacedTower,
-  onCloseInspector,
-  onUpgradeTower,
-  onSellTower,
-  onSendRaid,
-  onUpgradeEconomy,
-  onSabotageOpponent,
-}) {
-  const [activeTab, setActiveTab] = useState("defense"); // 'defense' | 'raids' | 'sabotage' | 'economy'
-  const [cooldowns, setCooldowns] = useState({});
+const TABS = [
+  { id: "defense", label: "DEFENSE", Icon: Shield, iconClass: "ic-cyan", key: "Q" },
+  { id: "raids", label: "RAIDS", Icon: Swords, iconClass: "ic-green", key: "W" },
+  { id: "sabotage", label: "BOSSES & DEBUFFS", Icon: Skull, iconClass: "ic-red", key: "E" },
+  { id: "economy", label: "POWER GRID", Icon: BatteryCharging, iconClass: "ic-amber", key: "R" },
+];
 
-  const handleSelectTab = (tab) => {
+const TARGET_LABELS = { first: "FIRST", last: "LAST", strongest: "STRONG", closest: "CLOSE" };
+
+export default function ControlHUD({ store, view, me, activeTab, setActiveTab, ghostType, onSelectTowerType, selectedTower, onCloseInspector }) {
+  const [, force] = useState(0);
+  const playing = view?.phase === "playing";
+  const anyCooldown = playing && me && Object.values(me.cooldowns || {}).some((t) => t > (view?.matchMs || 0));
+  useTicker(500, anyCooldown);
+
+  const gold = me?.gold ?? 0;
+  const wave = Math.max(1, view?.wave || 1);
+  const match = view ? { ...view, matchMs: playing ? store.matchNow() : view.matchMs } : null;
+
+  const selectTab = (tab) => {
     setActiveTab(tab);
-    if (onCloseInspector) {
-      onCloseInspector();
-    }
-    if (tab !== "defense") {
-      onSelectTowerType(null);
-    }
+    onCloseInspector();
+    if (tab !== "defense") onSelectTowerType(null);
   };
 
-  // Hotkeys 1-5 for tower selection
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.target.tagName === "INPUT") return;
-      const keyMap = { "1": "gatling", "2": "cryo", "3": "plasma", "4": "tesla", "5": "railgun" };
-      if (keyMap[e.key]) {
-        setActiveTab("defense");
-        onSelectTowerType(selectedTowerType === keyMap[e.key] ? null : keyMap[e.key]);
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedTowerType, onSelectTowerType]);
-
-  const handleCastSabotage = (spellKey) => {
-    onSelectTowerType(null);
-    const spell = SABOTAGE_SPELLS[spellKey];
-    if (cooldowns[spellKey] || playerGold < spell.cost) return;
-
-    onSabotageOpponent(spellKey);
-    setCooldowns((prev) => ({ ...prev, [spellKey]: spell.cooldown }));
-
-    const interval = setInterval(() => {
-      setCooldowns((prev) => {
-        const remaining = (prev[spellKey] || 0) - 1;
-        if (remaining <= 0) {
-          clearInterval(interval);
-          const next = { ...prev };
-          delete next[spellKey];
-          return next;
-        }
-        return { ...prev, [spellKey]: remaining };
-      });
-    }, 1000);
-  };
+  const why = (check) => (check.ok ? undefined : check.reason);
 
   return (
     <div className="control-hud">
-      {/* 4 Distinct Tabs */}
-      <div className="hud-tabs">
-        <button
-          onClick={() => handleSelectTab("defense")}
-          className={`hud-tab-btn ${activeTab === "defense" ? "tab-active" : ""}`}
-        >
-          <Shield className="w-4 h-4 text-cyan-400" />
-          <span>[1] DEFENSE ARMORY</span>
-        </button>
-
-        <button
-          onClick={() => handleSelectTab("raids")}
-          className={`hud-tab-btn ${activeTab === "raids" ? "tab-active" : ""}`}
-        >
-          <Swords className="w-4 h-4 text-green-400" />
-          <span>[2] MONSTER RAIDS (SPAM)</span>
-        </button>
-
-        <button
-          onClick={() => handleSelectTab("sabotage")}
-          className={`hud-tab-btn ${activeTab === "sabotage" ? "tab-active" : ""}`}
-        >
-          <Skull className="w-4 h-4 text-red-400" />
-          <span>[3] BOSSES & DEBUFFS</span>
-        </button>
-
-        <button
-          onClick={() => handleSelectTab("economy")}
-          className={`hud-tab-btn ${activeTab === "economy" ? "tab-active" : ""}`}
-        >
-          <BatteryCharging className="w-4 h-4 text-amber-400" />
-          <span>[4] POWER GRID (ECO)</span>
-        </button>
+      <div className="hud-tabs" role="tablist">
+        {TABS.map(({ id, label, Icon, iconClass, key }) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === id}
+            onClick={() => selectTab(id)}
+            className={`hud-tab-btn ${activeTab === id ? "tab-active" : ""}`}
+            title={`${label} (${key})`}
+          >
+            <Icon size={16} className={iconClass} />
+            <span className="tab-label">{label}</span>
+          </button>
+        ))}
       </div>
 
       <div className="hud-content">
-        {/* TAB 1: DEFENSE TOWERS */}
         {activeTab === "defense" && (
-          <div className="hud-grid">
+          <div className="hud-grid hud-grid-5">
             {Object.values(TOWERS).map((t) => {
-              const canAfford = playerGold >= t.cost;
-              const isSelected = selectedTowerType === t.id;
-
+              const canAfford = gold >= t.cost;
+              const isSelected = ghostType === t.id;
               return (
                 <button
                   key={t.id}
-                  disabled={!canAfford && !isSelected}
+                  type="button"
+                  disabled={!playing || (!canAfford && !isSelected)}
                   onClick={() => onSelectTowerType(isSelected ? null : t.id)}
-                  className={`card-btn tower-card ${isSelected ? "card-selected" : ""} ${
-                    !canAfford ? "card-disabled" : ""
-                  }`}
+                  className={`card-btn tower-card ${isSelected ? "card-selected" : ""} ${!canAfford ? "card-disabled" : ""}`}
                   style={{ "--accent": t.color }}
+                  title={canAfford ? t.desc : "Not enough gold"}
                 >
                   <div className="card-top">
                     <span className="hotkey-pill">{t.hotkey}</span>
@@ -145,9 +81,9 @@ export default function ControlHUD({
                   </div>
                   <div className="card-desc">{t.role}</div>
                   <div className="card-stats">
-                    <span>DMG: {t.damage}</span>
-                    <span>RNG: {t.range}</span>
-                    <span>SPD: {t.fireRate}/s</span>
+                    <span>DMG {t.damage}</span>
+                    <span>RNG {t.range}</span>
+                    <span>{t.fireRate}/s</span>
                   </div>
                 </button>
               );
@@ -155,46 +91,34 @@ export default function ControlHUD({
           </div>
         )}
 
-        {/* TAB 2: MONSTER RAIDS (PURE OFFENSIVE SPAM) */}
         {activeTab === "raids" && (
-          <div className="hud-grid grid-4col">
+          <div className="hud-grid hud-grid-4">
             {Object.values(CREEP_RAIDS).map((c) => {
-              const canAfford = playerGold >= c.cost;
-              // Regular creeps: Level rises every 2 waves (+25% HP per tier) capped at Lv. 100
-              const creepLevel = Math.max(1, Math.min(MAX_CREEP_LEVEL, Math.ceil(currentWave / 2)));
-              const hpMultiplier = 1 + (creepLevel - 1) * 0.25;
-              const scaledHp = Math.round(c.hp * hpMultiplier);
-
+              const check = match && me ? V.canSendRaid(match, me, c.id) : { ok: false };
+              const level = creepLevel(wave, false);
+              const mult = creepHpMultiplier(level, false);
               return (
                 <button
                   key={c.id}
-                  disabled={!canAfford}
-                  onClick={() => {
-                    onSelectTowerType(null);
-                    onSendRaid(c.id);
-                  }}
-                  className={`card-btn creep-card ${!canAfford ? "card-disabled" : ""}`}
+                  type="button"
+                  disabled={!check.ok}
+                  onClick={() => store.sendRaid(c.id)}
+                  className={`card-btn creep-card ${!check.ok ? "card-disabled" : ""}`}
                   style={{ "--accent": c.color }}
+                  title={why(check) || c.desc}
                 >
                   <div className="card-top">
-                    <span className={`level-badge ${creepLevel >= 3 ? "lv-high" : ""}`}>
-                      LV.{creepLevel} ({c.count}x)
-                    </span>
+                    <span className={`level-badge ${level >= 3 ? "lv-high" : ""}`}>LV.{level}</span>
                     <span className="card-title">{c.name}</span>
                     <span className="cost-tag">${c.cost}</span>
                   </div>
                   <div className="card-desc">{c.desc}</div>
                   <div className="card-stats">
-                    <span className="font-bold text-white">
-                      HP: {scaledHp}{" "}
-                      {creepLevel > 1 && (
-                        <span className="text-amber-400 font-normal">
-                          (+{Math.round((hpMultiplier - 1) * 100)}%)
-                        </span>
-                      )}
+                    <span className="txt-white bold">
+                      HP {Math.round(c.hp * mult)}
+                      {level > 1 && <span className="txt-amber"> (+{Math.round((mult - 1) * 100)}%)</span>}
                     </span>
-                    <span>SPD: {c.speed}</span>
-                    <span className="text-cyan-400 font-bold">➔ SPAM</span>
+                    <span>SPD {c.speed}</span>
                   </div>
                 </button>
               );
@@ -202,71 +126,63 @@ export default function ControlHUD({
           </div>
         )}
 
-        {/* TAB 3: BOSS SUMMONS & SABOTAGE DEBUFFS */}
         {activeTab === "sabotage" && (
-          <div className="hud-grid grid-5col">
-            {/* Bosses */}
+          <div className="hud-grid hud-grid-5">
             {Object.values(BOSS_SUMMONS).map((b) => {
-              const canAfford = playerGold >= b.cost;
-              // Bosses: Level rises every 4 waves (+35% HP per tier) capped at Lv. 100
-              const bossLevel = Math.max(1, Math.min(MAX_CREEP_LEVEL, Math.ceil(currentWave / 4)));
-              const bossHpMultiplier = 1 + (bossLevel - 1) * 0.35;
-              const scaledBossHp = Math.round(b.hp * bossHpMultiplier);
-
+              const check = match && me ? V.canSendRaid(match, me, b.id) : { ok: false };
+              const level = creepLevel(wave, true);
+              const mult = creepHpMultiplier(level, true);
               return (
                 <button
                   key={b.id}
-                  disabled={!canAfford}
-                  onClick={() => {
-                    onSelectTowerType(null);
-                    onSendRaid(b.id);
-                  }}
-                  className={`card-btn boss-card ${!canAfford ? "card-disabled" : ""}`}
+                  type="button"
+                  disabled={!check.ok}
+                  onClick={() => store.sendRaid(b.id)}
+                  className={`card-btn boss-card ${!check.ok ? "card-disabled" : ""}`}
+                  title={why(check) || b.desc}
                 >
                   <div className="card-top">
-                    <span className="boss-level-badge">💀 BOSS LV.{bossLevel}</span>
+                    <span className="boss-level-badge">BOSS LV.{level}</span>
                     <span className="card-title">{b.name}</span>
                     <span className="cost-tag">${b.cost}</span>
                   </div>
                   <div className="card-desc">{b.desc}</div>
                   <div className="card-stats">
-                    <span className="font-bold text-white">
-                      HP: {scaledBossHp.toLocaleString()}{" "}
-                      {bossLevel > 1 && (
-                        <span className="text-red-400 font-normal">
-                          (+{Math.round((bossHpMultiplier - 1) * 100)}%)
-                        </span>
-                      )}
-                    </span>
-                    <span className="text-red-400 font-bold">LEAK: -{b.leakDamage} HP</span>
+                    <span className="txt-white bold">HP {Math.round(b.hp * mult).toLocaleString()}</span>
+                    <span className="txt-red bold">LEAK -{b.leakDamage}</span>
                   </div>
                 </button>
               );
             })}
 
-            {/* Sabotage Debuffs */}
-            {Object.entries(SABOTAGE_SPELLS).map(([key, sp]) => {
-              const onCooldown = !!cooldowns[key];
-              const canAfford = playerGold >= sp.cost && !onCooldown;
-
+            {Object.values(SABOTAGE_SPELLS).map((sp) => {
+              const check = match && me ? V.canCast(match, me, sp.id) : { ok: false };
+              const cdMs = match && me ? V.spellCooldownRemainingMs(match, me, sp.id) : 0;
               return (
                 <button
-                  key={key}
-                  disabled={!canAfford}
-                  onClick={() => handleCastSabotage(key)}
-                  className={`card-btn sabotage-card ${!canAfford ? "card-disabled" : ""}`}
+                  key={sp.id}
+                  type="button"
+                  disabled={!check.ok}
+                  onClick={() => {
+                    store.cast(sp.id);
+                    force((n) => n + 1);
+                  }}
+                  className={`card-btn sabotage-card ${!check.ok ? "card-disabled" : ""}`}
+                  title={why(check) || sp.desc}
                 >
                   <div className="card-top">
-                    <span className="spell-icon">{sp.icon}</span>
+                    <span className="spell-icon" aria-hidden="true">
+                      {sp.icon}
+                    </span>
                     <span className="card-title">{sp.name}</span>
                     <span className="cost-tag">${sp.cost}</span>
                   </div>
                   <div className="card-desc">{sp.desc}</div>
                   <div className="card-stats">
-                    {onCooldown ? (
-                      <span className="cooldown-tag">COOLING: {cooldowns[key]}s</span>
+                    {cdMs > 0 ? (
+                      <span className="cooldown-tag">COOLING {Math.ceil(cdMs / 1000)}s</span>
                     ) : (
-                      <span className="ready-tag">READY (CD: {sp.cooldown}s)</span>
+                      <span className="ready-tag">READY · CD {sp.cooldown}s</span>
                     )}
                   </div>
                 </button>
@@ -275,31 +191,28 @@ export default function ControlHUD({
           </div>
         )}
 
-        {/* TAB 4: POWER GRID (DEDICATED INCOME UPGRADES) */}
         {activeTab === "economy" && (
-          <div className="hud-grid grid-4col">
+          <div className="hud-grid hud-grid-4">
             {ECO_UPGRADES.map((eco) => {
-              const canAfford = playerGold >= eco.cost;
-
+              const check = match && me ? V.canBuyEco(match, me, eco.id) : { ok: false };
               return (
                 <button
                   key={eco.id}
-                  disabled={!canAfford}
-                  onClick={() => {
-                    onSelectTowerType(null);
-                    onUpgradeEconomy(eco.id);
-                  }}
-                  className={`card-btn eco-card ${!canAfford ? "card-disabled" : ""}`}
+                  type="button"
+                  disabled={!check.ok}
+                  onClick={() => store.buyEco(eco.id)}
+                  className={`card-btn eco-card ${!check.ok ? "card-disabled" : ""}`}
+                  title={why(check) || eco.desc}
                 >
                   <div className="card-top">
-                    <span className="eco-badge">+{eco.incomeBoost} INC/2s</span>
+                    <span className="eco-badge">+{eco.incomeBoost}/2s</span>
                     <span className="card-title">{eco.name}</span>
                     <span className="cost-tag">${eco.cost}</span>
                   </div>
                   <div className="card-desc">{eco.desc}</div>
                   <div className="card-stats">
                     <span>TIER {eco.tier}</span>
-                    <span className="text-amber-400">⚡ PERMANENT BOOST</span>
+                    <span className="txt-amber">PERMANENT</span>
                   </div>
                 </button>
               );
@@ -307,63 +220,91 @@ export default function ControlHUD({
           </div>
         )}
 
-        {/* TOWER INSPECTOR DRAWER (When placed tower is clicked) */}
-        {selectedPlacedTower && (
-          <div className="tower-inspector-panel">
-            {(() => {
-              const config = TOWERS[selectedPlacedTower.type];
-              if (!config) return null;
-              const isMaxLevel = selectedPlacedTower.level >= MAX_TOWER_LEVEL;
-              const upgradeCost = Math.floor(config.cost * 0.8 * selectedPlacedTower.level);
-              const sellRefund = Math.floor(config.cost * 0.7 * selectedPlacedTower.level);
-              const canUpgrade = !isMaxLevel && playerGold >= upgradeCost;
+        {selectedTower && me && <TowerInspector store={store} match={match} me={me} tower={selectedTower} onClose={onCloseInspector} />}
+      </div>
+    </div>
+  );
+}
 
-              return (
-                <div className="inspector-content">
-                  <div className="inspector-header">
-                    <div>
-                      <h4 className="inspector-title">
-                        {config.name} <span className="text-amber-400">Lv.{selectedPlacedTower.level}</span>
-                      </h4>
-                      <p className="inspector-role">{config.role}</p>
-                    </div>
-                    <button onClick={onCloseInspector} className="close-btn">
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
+function MatchupHint({ damageType }) {
+  const { strong, weak } = matchups(damageType);
+  return (
+    <div className="matchup-hint">
+      {strong.length > 0 && <span className="txt-green">▲ {strong.join(", ").toUpperCase()}</span>}
+      {weak.length > 0 && <span className="txt-red">▼ {weak.join(", ").toUpperCase()}</span>}
+    </div>
+  );
+}
 
-                  <div className="inspector-stats">
-                    <div className="stat-pill">
-                      DMG: {Math.round(config.damage * (1 + (selectedPlacedTower.level - 1) * 0.35))}
-                    </div>
-                    <div className="stat-pill">
-                      RNG: {Math.round(config.range * (1 + (selectedPlacedTower.level - 1) * 0.12))}
-                    </div>
-                    <div className="stat-pill">RATE: {config.fireRate}/s</div>
-                  </div>
+function TowerInspector({ store, match, me, tower, onClose }) {
+  const def = TOWERS[tower.type];
+  if (!def) return null;
+  const isMax = tower.level >= MAX_TOWER_LEVEL;
+  const cost = upgradeCost(def, tower.level);
+  const refund = sellRefund(def, tower.level);
+  const canUpgrade = V.canUpgrade(match, me, tower.id);
 
-                  <div className="inspector-actions">
-                    <button
-                      disabled={!canUpgrade}
-                      onClick={() => onUpgradeTower(selectedPlacedTower.id)}
-                      className={`action-btn upgrade-btn ${!canUpgrade ? "btn-disabled" : ""}`}
-                    >
-                      <ArrowUpCircle className="w-4 h-4" />
-                      <span>{isMaxLevel ? "⭐ MAX LV.100" : `UPGRADE ($${upgradeCost})`}</span>
-                    </button>
-                    <button
-                      onClick={() => onSellTower(selectedPlacedTower.id)}
-                      className="action-btn sell-btn"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      <span>DISMANTLE (+${sellRefund})</span>
-                    </button>
-                  </div>
-                </div>
-              );
-            })()}
+  return (
+    <div className="tower-inspector-panel" role="dialog" aria-label={`${def.name} inspector`}>
+      <div className="inspector-content">
+        <div className="inspector-head">
+          <div>
+            <h4 className="inspector-title">
+              {def.name} <span className="txt-amber">Lv.{tower.level}</span>
+            </h4>
+            <p className="inspector-role">{def.role}</p>
           </div>
-        )}
+          <button type="button" onClick={onClose} className="close-btn" aria-label="Close inspector">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="inspector-stats">
+          <div className="stat-pill">DMG {towerDamage(def, tower.level)}</div>
+          <div className="stat-pill">RNG {Math.round(towerRange(def, tower.level))}</div>
+          <div className="stat-pill">{def.fireRate}/s</div>
+          <MatchupHint damageType={def.damageType} />
+        </div>
+
+        <div className="target-modes" role="radiogroup" aria-label="Targeting">
+          <Crosshair size={14} className="ic-cyan" />
+          {TARGET_MODES.map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              role="radio"
+              aria-checked={(tower.targetMode || "first") === mode}
+              className={`segment segment-sm ${(tower.targetMode || "first") === mode ? "segment-active" : ""}`}
+              onClick={() => store.setTarget(tower.id, mode)}
+            >
+              {TARGET_LABELS[mode]}
+            </button>
+          ))}
+        </div>
+
+        <div className="inspector-actions">
+          <button
+            type="button"
+            disabled={!canUpgrade.ok}
+            onClick={() => store.upgrade(tower.id)}
+            className={`action-btn upgrade-btn ${!canUpgrade.ok ? "btn-disabled" : ""}`}
+            title={canUpgrade.ok ? "Upgrade" : canUpgrade.reason}
+          >
+            <ArrowUpCircle size={16} />
+            <span>{isMax ? "MAX LEVEL" : `UPGRADE $${cost}`}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              store.sell(tower.id);
+              onClose();
+            }}
+            className="action-btn sell-btn"
+          >
+            <Trash2 size={16} />
+            <span>SELL +${refund}</span>
+          </button>
+        </div>
       </div>
     </div>
   );

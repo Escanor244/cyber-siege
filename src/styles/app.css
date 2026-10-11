@@ -1,0 +1,445 @@
+/* ==========================================================================
+   CYBER SIEGE — layout, new components and responsive rules.
+   Loaded after index.css (the original design system), which it extends.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Small semantic helpers (replace the Tailwind classes that never loaded)
+   -------------------------------------------------------------------------- */
+.row { display: flex; align-items: center; }
+.row.center { justify-content: center; }
+.stack { display: flex; flex-direction: column; }
+.gap-2 { gap: 8px; }
+.mb-1 { margin-bottom: 4px; }
+.mb-2 { margin-bottom: 8px; }
+.mt-3 { margin-top: 12px; }
+.mt-auto { margin-top: auto; }
+.w-full { width: 100%; }
+.min-w-0 { min-width: 0; }
+.shrink-0 { flex-shrink: 0; }
+.center { text-align: center; justify-content: center; }
+.bold { font-weight: 700; }
+.muted { color: #64748b !important; font-style: italic; }
+.ic-cyan { color: var(--neon-cyan); }
+.ic-amber { color: var(--neon-amber); }
+.ic-green { color: var(--neon-green); }
+.ic-red { color: var(--neon-red); }
+.txt-cyan { color: var(--neon-cyan); }
+.txt-amber { color: #fbbf24; }
+.txt-red { color: #f87171; }
+.txt-white { color: #ffffff; }
+.anim-bounce { animation: cs-bounce 1s infinite; }
+.anim-pulse { animation: cs-pulse 1.6s ease-in-out infinite; }
+@keyframes cs-bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+@keyframes cs-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+
+button { font: inherit; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--neon-cyan); outline-offset: 2px; }
+
+/* --------------------------------------------------------------------------
+   App shell
+   -------------------------------------------------------------------------- */
+html, body { height: 100%; }
+body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
+.app-root { min-height: 100vh; min-height: 100dvh; }
+
+.battle-arena {
+  height: 100vh;
+  height: 100dvh;
+  padding: max(10px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+  overflow: hidden;
+}
+
+.header-bar { gap: 12px; }
+.header-left, .header-right { min-width: 0; }
+.brand-text { display: flex; flex-direction: column; }
+.icon-btn-danger:hover { border-color: var(--neon-red); color: var(--neon-red); box-shadow: 0 0 10px rgba(239, 68, 68, 0.35); }
+
+.wave-preview {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  color: #94a3b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 320px;
+}
+.wave-boss-incoming { border-color: var(--neon-red); box-shadow: 0 0 18px rgba(239, 68, 68, 0.35); animation: pulse-danger 0.8s infinite alternate; }
+
+/* --------------------------------------------------------------------------
+   Battlefields
+   -------------------------------------------------------------------------- */
+.battlefields-row { gap: 12px; }
+.battleground-card { max-width: none; min-width: 0; }
+.battleground-header { gap: 8px; }
+.sector-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+
+.board-canvas-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #060913;
+  padding: 6px;
+}
+.board-canvas-wrap .game-canvas {
+  display: block;
+  width: auto;
+  max-height: none;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.enemy-toggle {
+  width: 100%;
+  border: none;
+  border-bottom: 1px solid var(--border-subtle);
+  color: inherit;
+  text-align: left;
+  cursor: default;
+}
+.enemy-chevron { display: none; color: #94a3b8; }
+
+/* Touch placement confirm */
+.place-confirm {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(8, 12, 22, 0.94);
+  border: 1px solid var(--neon-cyan);
+  border-radius: 999px;
+  padding: 6px 6px 6px 14px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 14px var(--neon-cyan-glow);
+  animation: alert-slide-up 0.18s ease-out;
+  z-index: 5;
+}
+.place-confirm-label { font-family: var(--font-display); font-size: 0.72rem; font-weight: 700; color: #e2e8f0; white-space: nowrap; }
+.place-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  font-size: 1.05rem;
+  font-weight: 900;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.place-ok { background: rgba(34, 197, 94, 0.2); border: 1px solid var(--neon-green); color: #4ade80; }
+.place-ok:disabled { opacity: 0.35; cursor: not-allowed; }
+.place-cancel { background: rgba(239, 68, 68, 0.15); border: 1px solid var(--neon-red); color: #f87171; }
+@keyframes alert-slide-up { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+/* --------------------------------------------------------------------------
+   HUD
+   -------------------------------------------------------------------------- */
+.hud-tab-btn { white-space: nowrap; }
+.hud-grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.hud-grid-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.card-btn { min-width: 0; }
+.card-btn:disabled { cursor: not-allowed; }
+.card-top { gap: 6px; }
+.card-title { flex: 1; min-width: 0; }
+.spell-icon { font-size: 0.95rem; }
+
+.tower-inspector-panel { padding: 10px 14px; }
+.inspector-content { gap: 14px; flex-wrap: wrap; }
+.inspector-head { display: flex; align-items: flex-start; gap: 6px; }
+.inspector-stats { gap: 8px; flex-wrap: wrap; }
+.target-modes { display: flex; align-items: center; gap: 4px; }
+.matchup-hint { display: flex; flex-direction: column; justify-content: center; gap: 1px; font-family: var(--font-mono); font-size: 0.62rem; font-weight: 700; letter-spacing: 0.04em; }
+.txt-green { color: #4ade80; }
+
+/* Segmented control (difficulty, targeting, quality) */
+.segmented { display: inline-flex; background: rgba(0, 0, 0, 0.45); border: 1px solid var(--border-subtle); border-radius: 9px; padding: 3px; gap: 3px; margin-bottom: 12px; }
+.segment {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: #94a3b8;
+  font-family: var(--font-display);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.segment:hover { color: #ffffff; }
+.segment-active { background: rgba(0, 240, 255, 0.15); border-color: var(--neon-cyan); color: #ffffff; box-shadow: 0 0 10px var(--neon-cyan-glow); }
+.segment-sm { padding: 4px 8px; font-size: 0.62rem; }
+.target-modes .segment { border-color: var(--border-subtle); }
+.target-modes .segment-active { border-color: var(--neon-cyan); }
+
+/* --------------------------------------------------------------------------
+   Lobby extras
+   -------------------------------------------------------------------------- */
+.mode-card { min-width: 0; }
+.clear-code-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 0 10px;
+  color: #94a3b8;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.join-input { min-width: 0; font-size: 0.95rem; }
+
+/* Room waiting banner */
+.room-lobby-banner { margin-bottom: 0; }
+.room-lobby-info { min-width: 0; }
+.room-lobby-title { font-family: var(--font-display); font-size: 1rem; font-weight: 700; color: #ffffff; letter-spacing: 0.04em; }
+.room-lobby-hint { font-size: 0.78rem; color: #94a3b8; }
+.room-lobby-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.btn-leave { border-color: rgba(239, 68, 68, 0.4); color: #f87171; }
+.btn-pulse { animation: cs-glow 1.6s ease-in-out infinite; }
+@keyframes cs-glow { 0%, 100% { box-shadow: 0 0 14px rgba(0, 240, 255, 0.35); } 50% { box-shadow: 0 0 28px rgba(0, 240, 255, 0.8); } }
+.launch-duel-btn:disabled { cursor: not-allowed; opacity: 0.55; }
+.player-strip-card { gap: 8px; }
+.strip-slot { font-family: var(--font-mono); font-size: 0.72rem; font-weight: 700; color: var(--neon-cyan); }
+.strip-name { flex: 1; min-width: 0; font-weight: 700; color: #ffffff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* --------------------------------------------------------------------------
+   Toasts & banners
+   -------------------------------------------------------------------------- */
+.toast-stack {
+  position: fixed;
+  top: max(14px, env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: min(92vw, 560px);
+  pointer-events: none;
+}
+.toast-stack .global-alert-banner { position: static; transform: none; max-width: 100%; animation: toast-in 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
+@keyframes toast-in { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: translateY(0); } }
+.alert-warn { background: rgba(40, 26, 6, 0.95); border: 1px solid var(--neon-amber); color: #fde68a; box-shadow: 0 0 20px rgba(245, 158, 11, 0.35); }
+
+.reconnect-banner {
+  position: fixed;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(40, 26, 6, 0.95);
+  border: 1px solid var(--neon-amber);
+  color: #fde68a;
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 700;
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.35);
+}
+.pause-timer-label { font-family: var(--font-mono); font-size: 0.72rem; color: #94a3b8; letter-spacing: 0.1em; }
+
+/* --------------------------------------------------------------------------
+   Modals: game over stats, settings, tutorial
+   -------------------------------------------------------------------------- */
+.modal-overlay { z-index: 1200; overflow-y: auto; }
+.modal-container { max-height: calc(100dvh - 32px); overflow-y: auto; }
+.stats-grid { display: grid; grid-template-columns: 1fr 1fr; column-gap: 18px; row-gap: 6px; }
+.stats-grid .stat-row { align-items: baseline; gap: 8px; }
+
+.settings-card { max-width: 420px; align-items: stretch; text-align: left; gap: 12px; }
+.settings-head { display: flex; align-items: center; justify-content: space-between; }
+.settings-title { font-family: var(--font-display); font-size: 1.2rem; font-weight: 900; letter-spacing: 0.1em; color: #ffffff; }
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: #cbd5e1;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.setting-row .segmented { margin: 0; }
+.setting-row input[type="range"] { flex: 1; accent-color: var(--neon-cyan); }
+.setting-row input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--neon-cyan); }
+.setting-val { width: 42px; text-align: right; color: var(--neon-cyan); }
+
+.tutorial-overlay { z-index: 1300; }
+.tutorial-card { max-width: 440px; gap: 4px; }
+.tutorial-step { font-family: var(--font-mono); font-size: 0.7rem; color: var(--neon-cyan); letter-spacing: 0.15em; margin-bottom: 10px; }
+.tutorial-title { font-family: var(--font-display); font-size: 1.3rem; font-weight: 900; color: #ffffff; letter-spacing: 0.06em; }
+.tutorial-dots { display: flex; gap: 6px; margin: 4px 0 16px; }
+.tutorial-dots .dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, 0.15); }
+.tutorial-dots .dot-on { background: var(--neon-cyan); box-shadow: 0 0 8px var(--neon-cyan); }
+.tutorial-actions { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; width: 100%; }
+
+/* ==========================================================================
+   RESPONSIVE
+   ========================================================================== */
+
+/* Large desktops: let the battlefields grow */
+@media (min-width: 1500px) {
+  .battle-arena { padding-left: 24px; padding-right: 24px; }
+  .battlefields-row { gap: 18px; }
+}
+
+/* Tablets & small laptops: same layout, tighter */
+@media (max-width: 1099px) {
+  .header-bar { flex-wrap: wrap; padding: 8px 12px; row-gap: 8px; }
+  .center-hud-cluster { order: 3; width: 100%; justify-content: center; gap: 12px; }
+  .wave-status-card { min-width: 0; flex: 1; }
+  .brand-subtitle { display: none; }
+
+  .hud-grid, .hud-grid-4, .hud-grid-5 {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+    scrollbar-width: thin;
+  }
+  .hud-grid .card-btn { flex: 0 0 168px; scroll-snap-align: start; }
+  .card-top { flex-wrap: wrap; row-gap: 2px; }
+  .card-top .card-title { order: 3; flex-basis: 100%; }
+}
+
+/* Portrait tablets: stack both boards so each uses the full width */
+@media (max-width: 1099px) and (min-width: 700px) and (orientation: portrait) {
+  .battlefields-row { flex-direction: column; }
+  .card-own { flex: 1.25 1 0; }
+  .card-enemy { flex: 1 1 0; }
+}
+
+/* Phones, portrait */
+@media (max-width: 699px) {
+  body { font-size: 15px; }
+  .battle-arena { padding: max(6px, env(safe-area-inset-top)) max(6px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left)); gap: 6px; }
+
+  /* Compact header: brand icon, wave, gold, buttons */
+  .header-bar { padding: 6px 8px; gap: 6px; border-radius: 10px; }
+  .brand-text, .match-timer-box, .income-label, .income-divider { display: none; }
+  .brand-icon { padding: 4px; }
+  .header-left, .header-right { gap: 6px; }
+  .status-pill { padding: 3px 8px; font-size: 0.7rem; }
+  .eco-pill { padding: 3px 8px; gap: 6px; }
+  .gold-val { font-size: 1rem; }
+  .income-val { font-size: 0.75rem; }
+  .icon-btn { padding: 6px; }
+  .center-hud-cluster { gap: 6px; }
+  .wave-status-card { padding: 5px 10px 6px; gap: 4px; }
+  .wave-num-badge { font-size: 0.72rem; padding: 2px 8px; }
+  .wave-countdown-text { font-size: 0.68rem; }
+  .wave-header-row { gap: 8px; }
+
+  /* Room banner */
+  .room-lobby-banner { padding: 10px 12px; gap: 8px; }
+  .room-lobby-title { font-size: 0.85rem; }
+  .room-lobby-hint { display: none; }
+  .room-lobby-actions { width: 100%; }
+  .room-lobby-actions > * { flex: 1 1 auto; text-align: center; }
+  .room-players-strip { grid-template-columns: 1fr; gap: 6px; }
+
+  /* Boards stacked: your sector fills the space; enemy collapses to a bar */
+  .battlefields-row { flex-direction: column; gap: 6px; }
+  .card-own { flex: 1 1 auto; }
+  .card-enemy { flex: 0 0 auto; }
+  .card-enemy .board-canvas-wrap { display: none; }
+  .battlefields-row.enemy-open .card-own { flex: 1 1 55%; }
+  .battlefields-row.enemy-open .card-enemy { flex: 1 1 45%; }
+  .battlefields-row.enemy-open .card-enemy .board-canvas-wrap { display: flex; }
+  .enemy-toggle { cursor: pointer; }
+  .enemy-chevron { display: inline-flex; }
+  .battleground-header { padding: 6px 10px; }
+  .sector-title { font-size: 0.72rem; }
+  .board-canvas-wrap { padding: 3px; }
+
+  /* HUD: icon tabs + swipeable cards */
+  .control-hud { padding: 6px; gap: 6px; border-radius: 10px; }
+  .hud-tabs { gap: 4px; }
+  .hud-tab-btn { flex: 1; justify-content: center; padding: 8px 4px; }
+  .tab-label { display: none; }
+  .hud-grid .card-btn { flex: 0 0 148px; padding: 7px 8px; }
+  .card-top { flex-wrap: wrap; row-gap: 2px; }
+  .card-top .card-title { order: 3; flex-basis: 100%; }
+  .card-desc { height: 26px; font-size: 0.66rem; }
+  .hotkey-pill { display: none; }
+
+  /* Inspector becomes a bottom sheet */
+  .tower-inspector-panel {
+    position: fixed;
+    inset: auto max(6px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left));
+    border-radius: 14px;
+    padding: 12px;
+    z-index: 900;
+  }
+  .inspector-content { flex-direction: column; align-items: stretch; gap: 10px; }
+  .inspector-head { justify-content: space-between; }
+  .inspector-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .action-btn { justify-content: center; padding: 10px; }
+  .target-modes { justify-content: space-between; }
+  .target-modes .segment { flex: 1; padding: 7px 4px; }
+
+  /* Lobby & modals */
+  .lobby-overlay, .modal-overlay { padding: 12px; align-items: flex-start; overflow-y: auto; }
+  .lobby-container { padding: 20px 16px; gap: 14px; border-radius: 16px; }
+  .lobby-title { font-size: 1.8rem; }
+  .mode-grid { grid-template-columns: 1fr; gap: 12px; }
+  .modal-container { padding: 22px 16px; }
+  .modal-title { font-size: 1.4rem; }
+  .stats-grid { grid-template-columns: 1fr; }
+  .place-btn { width: 44px; height: 44px; }
+  .global-alert-banner { font-size: 0.74rem; padding: 7px 14px; letter-spacing: 0.04em; }
+}
+
+/* Phones, landscape: board on the left, enemy + HUD on the right */
+@media (orientation: landscape) and (max-height: 540px) {
+  .battle-arena {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(250px, 40%);
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "header header"
+      "banner banner"
+      "own enemy"
+      "own hud";
+    gap: 6px;
+    padding: max(4px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(4px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+  }
+  .battlefields-row { display: contents; }
+  .header-bar { grid-area: header; flex-wrap: nowrap; padding: 4px 8px; }
+  .center-hud-cluster { order: 0; width: auto; }
+  .brand-text, .match-timer-box, .income-label, .income-divider, .wave-preview { display: none; }
+  .room-lobby-banner { grid-area: banner; padding: 6px 10px; }
+  .room-lobby-hint, .room-players-strip { display: none; }
+  .card-own { grid-area: own; }
+  .card-enemy { grid-area: enemy; }
+  .card-enemy .board-canvas-wrap { display: flex; }
+  .enemy-chevron { display: none; }
+  .control-hud { grid-area: hud; padding: 6px; gap: 6px; }
+  .tab-label { display: none; }
+  .hud-tab-btn { flex: 1; justify-content: center; padding: 6px 4px; }
+  .hud-grid .card-btn { flex: 0 0 140px; padding: 6px 8px; }
+  .card-desc { display: none; }
+  .battleground-header { padding: 4px 8px; }
+  .tower-inspector-panel { position: fixed; inset: auto 8px 8px auto; width: min(420px, 60vw); border-radius: 14px; z-index: 900; }
+  .inspector-content { flex-direction: column; align-items: stretch; gap: 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}

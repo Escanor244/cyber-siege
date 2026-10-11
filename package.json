@@ -8,10 +8,10 @@
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "party:dev": "wrangler dev --port 1999",
-    "party:deploy": "wrangler deploy",
     "server:dev": "wrangler dev --port 1999",
-    "server:deploy": "wrangler deploy"
+    "server:deploy": "wrangler deploy",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "canvas-confetti": "^1.9.4",
@@ -25,9 +25,10 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
+    "@vitest/coverage-v8": "^3.2.7",
     "oxlint": "^1.81.0",
-    "partykit": "^0.0.115",
     "vite": "^8.3.0",
+    "vitest": "^3.2.7",
     "wrangler": "^4.149.0"
   }
 }

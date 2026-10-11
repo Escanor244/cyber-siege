@@ -1,378 +1,370 @@
-// Cyber Siege - Main Game Orchestrator Component
-import { useState, useEffect } from "react";
+// Cyber Siege - top-level screen flow. Solo and multiplayer share every screen;
+// only the session's transport differs (see net/useMatch.js).
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import HeaderBar from "./components/HeaderBar";
 import GameBoard from "./components/GameBoard";
 import ControlHUD from "./components/ControlHUD";
 import Lobby from "./components/Lobby";
 import GameOverModal from "./components/GameOverModal";
-import { useCyberSocket } from "./hooks/useCyberSocket";
-import { sound } from "./lib/soundFx";
+import SettingsMenu from "./components/SettingsMenu";
+import Tutorial from "./components/Tutorial";
+import { PauseOverlay, ReconnectBanner, Toasts, RoomBanner } from "./components/Overlays";
+import { useMatch, forgetRoomToken } from "./net/useMatch.js";
+import { useMatchAlerts } from "./lib/useMatchAlerts.js";
+import { settings } from "./lib/settings.js";
+import { sound } from "./audio/soundFx.js";
+import { TOWERS } from "./shared/config/towers.js";
+import * as V from "./shared/rules/validate.js";
+
+const TOWER_KEYS = Object.fromEntries(Object.values(TOWERS).map((t) => [t.hotkey, t.id]));
+const TAB_KEYS = { q: "defense", w: "raids", e: "sabotage", r: "economy" };
+const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I confusion
+
+// The tab remembers its multiplayer room, so a reload drops straight back into the
+// match (the server's resume token gives back the same seat).
+const ACTIVE_KEY = "cybersiege_active_room";
+
+function loadActiveSession() {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(ACTIVE_KEY) || "null");
+    return saved?.mode === "multi" && saved.roomId ? saved : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveActiveSession(session) {
+  try {
+    if (session?.mode === "multi") sessionStorage.setItem(ACTIVE_KEY, JSON.stringify(session));
+    else sessionStorage.removeItem(ACTIVE_KEY);
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+function newRoomCode() {
+  const bytes = new Uint32Array(6);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => CODE_CHARS[b % CODE_CHARS.length]).join("");
+}
+
+const REJECT_TEXT = {
+  room_full: "That battle room is already full (2/2).",
+  not_found: "No battle room with that code. Check the code and try again.",
+  in_progress: "That match has already started.",
+  room_closed: "That battle room has ended.",
+  replaced: "This match was opened in another tab.",
+  version: "A newer version of Cyber Siege is available. Please refresh the page.",
+};
 
 export default function App() {
-  const [playerName, setPlayerName] = useState("Viper-01");
-  const [roomId, setRoomId] = useState("");
-  const [inLobby, setInLobby] = useState(true);
-  const [isSoloAi, setIsSoloAi] = useState(false);
-  const [isHostRole, setIsHostRole] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
+  const prefs = useSyncExternalStore(settings.subscribe, settings.get);
+  const [playerName, setPlayerName] = useState(prefs.playerName || "Viper-01");
+  const [session, setSession] = useState(loadActiveSession);
+  const [activeTab, setActiveTab] = useState("defense");
+  const [ghostType, setGhostType] = useState(null);
+  const [pendingCell, setPendingCell] = useState(null);
+  const [hoverCell, setHoverCell] = useState(null);
+  const [selectedTowerId, setSelectedTowerId] = useState(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [enemyOpen, setEnemyOpen] = useState(false);
+  const [isMuted, setMuted] = useState(sound.isMuted);
+  const createRetries = useRef(0);
 
-  // Tower Selection state
-  const [selectedTowerType, setSelectedTowerType] = useState(null);
-  const [selectedPlacedTower, setSelectedPlacedTower] = useState(null);
-  const [copiedCode, setCopiedCode] = useState(false);
+  const { handle, state } = useMatch(session);
+  const { toasts, pushToast } = useMatchAlerts(handle);
 
-  const {
-    gameState,
-    myPlayerId,
-    mySlot,
-    isHost: isSocketHost,
-    incomingCreeps,
-    opponentIncomingCreeps,
-    activeSabotages,
-    connectionStatus,
-    alertBanner,
-    showAlert,
-    startGame,
-    buildTower,
-    upgradeTower,
-    sellTower,
-    sendRaid,
-    upgradeEconomy,
-    sabotageOpponent,
-    reportLeakDamage,
-    reportBotLeakDamage,
-    restartGame,
-    leaveRoom,
-  } = useCyberSocket(roomId, playerName, isSoloAi, isHostRole);
+  const view = state?.view || null;
+  const me = view?.players.find((p) => p.id === state?.playerId) || null;
+  const opponent = view?.players.find((p) => p.id !== state?.playerId) || null;
+  const isSolo = session?.mode === "solo";
+  const phase = view?.phase;
 
-  // Ensure browser address bar is always clean at /
-  useEffect(() => {
-    if (typeof window !== "undefined" && window.location.search) {
-      window.history.replaceState(null, "", window.location.pathname);
-    }
+  useEffect(() => sound.installUnlock(), []);
+  useEffect(() => saveActiveSession(session), [session]);
+
+  const clearSelection = useCallback(() => {
+    setGhostType(null);
+    setPendingCell(null);
+    setSelectedTowerId(null);
   }, []);
 
-  const handleReturnLobby = () => {
-    leaveRoom();
-    if (roomId) {
-      try {
-        sessionStorage.removeItem(`cybersiege_sess_${roomId}`);
-      } catch (e) {}
-    }
-    if (typeof window !== "undefined" && window.location.search) {
-      window.history.replaceState(null, "", window.location.pathname);
-    }
-    setInLobby(true);
-    setRoomId("");
-    setIsSoloAi(false);
-    setIsHostRole(false);
-  };
+  const backToMenu = useCallback(
+    (message) => {
+      if (session?.roomId) forgetRoomToken(session.roomId);
+      setSession(null);
+      clearSelection();
+      setEnemyOpen(false);
+      if (message) pushToast(message, "danger");
+    },
+    [session, clearSelection, pushToast]
+  );
 
-  // Automatically return to main menu if host closes room or room is full
+  // Rejections and closed rooms send the player back to the menu (or retry a new code)
   useEffect(() => {
-    if (connectionStatus === "room_closed" || connectionStatus === "room_full") {
-      if (roomId) {
-        try {
-          sessionStorage.removeItem(`cybersiege_sess_${roomId}`);
-        } catch (e) {}
+    if (!state || !session) return;
+    if (state.status === "rejected") {
+      const code = state.reject?.code;
+      if (code === "room_exists" && session.intent === "create" && createRetries.current < 3) {
+        createRetries.current += 1;
+        setSession({ ...session, roomId: newRoomCode() });
+        return;
       }
-      setInLobby(true);
-      setRoomId("");
-      setIsHostRole(false);
+      backToMenu(REJECT_TEXT[code] || state.reject?.reason || "Could not join the room.");
+    } else if (state.status === "closed") {
+      backToMenu(state.closedReason || "The room was closed.");
     }
-  }, [connectionStatus, roomId]);
+  }, [state, session, backToMenu]);
 
-  // Resolve player & opponent states strictly based on role and slot
-  const sessionKey = roomId ? sessionStorage.getItem(`cybersiege_sess_${roomId}`) : null;
-  const p1Player = gameState?.players?.find((p) => p.slot === "p1");
-  const p2Player = gameState?.players?.find((p) => p.slot === "p2");
+  // Leaving the playing phase clears any half-finished placement
+  useEffect(() => {
+    if (phase !== "playing") clearSelection();
+  }, [phase, clearSelection]);
 
-  const myPlayer =
-    gameState?.players?.find((p) => (myPlayerId && p.id === myPlayerId) || (sessionKey && p.sessionId === sessionKey)) ||
-    (isHostRole ? p1Player : p2Player) ||
-    {
-      id: isHostRole ? "p1" : "p2",
-      name: playerName,
-      gold: 250,
-      incomeRate: 15,
-      baseHp: 100,
-      towers: [],
-      stats: { creepsSent: 0 },
-      isHost: isHostRole,
-      slot: isHostRole ? "p1" : "p2",
+  // First visit: show the tutorial as soon as a session opens
+  useEffect(() => {
+    if (handle && !settings.get().tutorialDone) setShowTutorial(true);
+  }, [handle]);
+
+  // Solo: the clock stops while a menu covers the board
+  useEffect(() => {
+    handle?.local?.setSuspended("menu", showTutorial || showSettings);
+  }, [handle, showTutorial, showSettings]);
+
+  const updateName = (name) => {
+    setPlayerName(name);
+    settings.set({ playerName: name });
+  };
+
+  const startSolo = () => {
+    createRetries.current = 0;
+    setSession({ mode: "solo", name: playerName.trim() || "Commander", difficulty: prefs.difficulty });
+  };
+  const createRoom = () => {
+    createRetries.current = 0;
+    setSession({ mode: "multi", intent: "create", roomId: newRoomCode(), name: playerName.trim() || "Commander" });
+  };
+  const joinRoom = (code) => {
+    setSession({ mode: "multi", intent: "join", roomId: code.toUpperCase(), name: playerName.trim() || "Commander" });
+  };
+  const leave = () => {
+    handle?.store.leave();
+    backToMenu();
+  };
+
+  // --------------------------------------------------------------- placement
+  const selectedTower = me?.towers.find((t) => t.id === selectedTowerId) || null;
+  const previewCell = pendingCell || hoverCell;
+  const ghostOk = !!(ghostType && previewCell && me && view && V.canBuild(view, me, ghostType, previewCell.x, previewCell.y).ok);
+
+  const build = (cell) => {
+    if (!handle || !me || !ghostType) return;
+    const check = V.canBuild(view, me, ghostType, cell.x, cell.y);
+    if (!check.ok) {
+      pushToast(check.reason, "warn");
+      return;
+    }
+    handle.store.build(ghostType, cell.x, cell.y);
+    setPendingCell(null);
+    setGhostType(null);
+  };
+
+  const onCellTap = (cell, pointerType) => {
+    const tower = me?.towers.find((t) => t.gridX === cell.x && t.gridY === cell.y);
+    if (tower) {
+      setSelectedTowerId(tower.id);
+      setGhostType(null);
+      setPendingCell(null);
+      setActiveTab("defense");
+      return;
+    }
+    if (ghostType) {
+      const touch = pointerType !== "mouse";
+      if (!touch || (pendingCell && pendingCell.x === cell.x && pendingCell.y === cell.y)) build(cell);
+      else setPendingCell(cell);
+      return;
+    }
+    setSelectedTowerId(null);
+  };
+
+  const selectTowerType = (type) => {
+    setGhostType(type);
+    setPendingCell(null);
+    setSelectedTowerId(null);
+  };
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    if (!handle) return undefined;
+    const onKey = (e) => {
+      if (e.target instanceof HTMLInputElement || e.metaKey || e.ctrlKey || e.altKey) return;
+      const key = e.key.toLowerCase();
+      if (TOWER_KEYS[key]) {
+        setActiveTab("defense");
+        setGhostType((cur) => (cur === TOWER_KEYS[key] ? null : TOWER_KEYS[key]));
+        setPendingCell(null);
+        setSelectedTowerId(null);
+      } else if (TAB_KEYS[key]) {
+        setActiveTab(TAB_KEYS[key]);
+      } else if (key === "escape") {
+        clearSelection();
+      } else if (key === "u" && selectedTowerId) {
+        handle.store.upgrade(selectedTowerId);
+      }
     };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [handle, selectedTowerId, clearSelection]);
 
-  const isEffectiveHost = isHostRole || isSocketHost || !!myPlayer?.isHost || mySlot === "p1";
+  // ------------------------------------------------------------------ render
+  if (!session) {
+    return (
+      <div className="app-root">
+        <Toasts toasts={toasts} />
+        <Lobby
+          playerName={playerName}
+          setPlayerName={updateName}
+          difficulty={prefs.difficulty}
+          setDifficulty={(d) => settings.set({ difficulty: d })}
+          onStartSolo={startSolo}
+          onCreateRoom={createRoom}
+          onJoinRoom={joinRoom}
+        />
+      </div>
+    );
+  }
 
-  const opponentPlayer =
-    gameState?.players?.find((p) => p.id !== myPlayer?.id && (!sessionKey || p.sessionId !== sessionKey)) ||
-    (isHostRole ? p2Player : p1Player) ||
-    {
-      id: isHostRole ? "p2" : "p1",
-      name: isSoloAi ? "Cyber-Vanguard AI" : (isHostRole ? "Waiting for Opponent..." : "Host Commander"),
-      gold: 250,
-      incomeRate: 15,
-      baseHp: 100,
-      towers: [],
-      stats: { creepsSent: 0 },
-      slot: isHostRole ? "p2" : "p1",
-    };
-
-  // Lobby Handlers
-  const handleStartSoloAi = () => {
-    setIsHostRole(true);
-    setIsSoloAi(true);
-    setInLobby(false);
-    startGame(true);
-  };
-
-  const handleCreateRoom = () => {
-    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-    setIsHostRole(true);
-    setRoomId(code);
-    setIsSoloAi(false);
-    setInLobby(false);
-  };
-
-  const handleJoinRoom = (code) => {
-    const clean = (code || "").trim().toUpperCase();
-    if (!clean) return;
-    setIsHostRole(false);
-    setRoomId(clean);
-    setIsSoloAi(false);
-    setInLobby(false);
-  };
-
-  const handleToggleSound = () => {
-    const muted = sound.toggleMute();
-    setIsMuted(muted);
-  };
-
-  const handleBuildTowerAction = (towerType, x, y) => {
-    buildTower(towerType, x, y);
-    setSelectedTowerType(null);
-  };
-
-  const isGameOver = gameState?.phase === "game_over";
-  const isWinner = gameState?.winnerId === myPlayer.id;
+  const hpClass = (hp) => (hp < 30 ? "hp-val hp-danger" : "hp-val");
 
   return (
     <div className="app-root">
-      {/* Global Alert Notification Banner */}
-      {alertBanner && (
-        <div className={`global-alert-banner alert-${alertBanner.type}`}>
-          {alertBanner.text}
-        </div>
-      )}
-
-      {inLobby ? (
-        <Lobby
-          playerName={playerName}
-          setPlayerName={setPlayerName}
-          initialRoomCode={roomId}
-          onStartSoloAi={handleStartSoloAi}
-          onCreateRoom={handleCreateRoom}
-          onJoinRoom={handleJoinRoom}
+      <Toasts toasts={toasts} />
+      <div className="battle-arena">
+        <HeaderBar
+          store={handle?.store}
+          view={view}
+          me={me}
+          isSolo={isSolo}
+          roomId={session.roomId}
+          isMuted={isMuted}
+          onToggleSound={() => setMuted(sound.toggleMute())}
+          onOpenSettings={() => setShowSettings(true)}
+          onLeave={leave}
         />
-      ) : (
-        <div className="battle-arena">
-          {/* Top HUD Header */}
-          <HeaderBar
-            roomId={roomId}
-            playerGold={myPlayer.gold}
-            playerIncome={myPlayer.incomeRate}
-            matchTime={gameState?.matchTimeSeconds || 0}
-            currentWave={gameState?.currentWaveNumber || 0}
-            nextWaveCountdown={gameState?.nextWaveCountdown ?? 22}
-            connectionStatus={connectionStatus}
-            isSoloAi={isSoloAi}
-            onToggleSound={handleToggleSound}
-            isMuted={isMuted}
-            onLeaveRoom={handleReturnLobby}
-            isPlaying={gameState?.phase === "playing" || isSoloAi}
-          />
 
-          {/* Multiplayer 1v1 Waiting Room Banner */}
-          {!isSoloAi && (!gameState || gameState.phase === "lobby") && (
-            <div className="room-lobby-banner">
-              <div className="room-lobby-header">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="badge-pill">1V1 BATTLE ROOM</span>
-                    <span className="room-code-tag">CODE: {roomId}</span>
-                  </div>
-                  <h2 className="text-lg font-bold text-white tracking-wide">
-                    {(gameState?.players?.length || 0) >= 2
-                      ? "BOTH COMMANDERS READY FOR COMBAT!"
-                      : "WAITING FOR OPPONENT TO CONNECT..."}
-                  </h2>
-                  <p className="text-xs text-slate-400">
-                    Share your room code with your friend to duel!
-                  </p>
-                </div>
+        {!isSolo && <ReconnectBanner status={state?.status} />}
 
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => {
-                      navigator.clipboard?.writeText(roomId);
-                      sound.playCoin();
-                      setCopiedCode(true);
-                      setTimeout(() => setCopiedCode(false), 2200);
-                      showAlert(`📋 ROOM CODE [${roomId}] COPIED TO CLIPBOARD!`, "success");
-                    }}
-                    className={`copy-invite-btn ${copiedCode ? "btn-copied" : ""}`}
-                    title="Copy 6-character room code"
-                  >
-                    {copiedCode ? `✅ COPIED: ${roomId}` : `📋 COPY ROOM CODE: ${roomId}`}
-                  </button>
+        {!isSolo && phase === "lobby" && (
+          <RoomBanner roomId={session.roomId} view={view} isHost={!!me?.isHost} onStart={() => handle?.store.start()} onLeave={leave} />
+        )}
 
-                  <button
-                    onClick={handleReturnLobby}
-                    className="copy-invite-btn"
-                    style={{ borderColor: "rgba(239, 68, 68, 0.4)", color: "#f87171" }}
-                  >
-                    🚪 LEAVE ROOM
-                  </button>
-
-                  {isEffectiveHost ? (
-                    <button
-                      disabled={(gameState?.players?.length || 0) < 2}
-                      onClick={() => startGame(false)}
-                      className={`launch-duel-btn ${(gameState?.players?.length || 0) < 2 ? "btn-disabled" : "btn-pulse"}`}
-                    >
-                      {(gameState?.players?.length || 0) < 2
-                        ? "⏳ WAITING FOR OPPONENT (1/2)..."
-                        : "⚡ START 1V1 DUEL (2/2 READY)"}
+        <main className={`battlefields-row ${enemyOpen ? "enemy-open" : ""}`}>
+          <section className="battleground-card card-own">
+            <div className="battleground-header">
+              <div className="row gap-2 min-w-0">
+                <span className="status-dot dot-cyan" />
+                <h3 className="sector-title">YOUR SECTOR // {me?.name || playerName}</h3>
+              </div>
+              <div className="base-hp-badge">
+                <span className="hp-label">CORE</span>
+                <span className={hpClass(me?.hp ?? 100)}>{me?.hp ?? 100}%</span>
+              </div>
+            </div>
+            {handle && (
+              <GameBoard
+                kind="own"
+                handle={handle}
+                coreHp={me?.hp ?? 100}
+                ghostType={ghostType}
+                ghostOk={ghostOk}
+                pendingCell={pendingCell}
+                selectedTowerId={selectedTowerId}
+                onCellTap={onCellTap}
+                onCellHover={setHoverCell}
+              >
+                {pendingCell && ghostType && (
+                  <div className="place-confirm" role="group" aria-label="Confirm placement">
+                    <span className="place-confirm-label">
+                      {TOWERS[ghostType].name} · ${TOWERS[ghostType].cost}
+                    </span>
+                    <button type="button" className="place-btn place-cancel" onClick={() => setPendingCell(null)} aria-label="Cancel placement">
+                      ✕
                     </button>
-                  ) : (
-                    <div className="challenger-status-tag">
-                      🎮 READY · WAITING FOR HOST TO START DUEL
-                    </div>
-                  )}
-                </div>
+                    <button type="button" className="place-btn place-ok" disabled={!ghostOk} onClick={() => build(pendingCell)} aria-label="Build here">
+                      ✓
+                    </button>
+                  </div>
+                )}
+              </GameBoard>
+            )}
+          </section>
+
+          <section className="battleground-card card-enemy">
+            <button type="button" className="battleground-header enemy-toggle" onClick={() => setEnemyOpen((o) => !o)} aria-expanded={enemyOpen}>
+              <div className="row gap-2 min-w-0">
+                <span className="status-dot dot-purple" />
+                <h3 className="sector-title">ENEMY // {opponent?.name || (isSolo ? "Vanguard AI" : "Waiting…")}</h3>
               </div>
-
-              {/* Connected Players Badges */}
-              <div className="room-players-strip">
-                <div className="player-strip-card">
-                  <span className="text-xs font-mono text-cyan-400 font-bold">SLOT 1 (P1):</span>
-                  <span className="text-sm font-bold text-white">
-                    {p1Player?.name || (isHostRole ? playerName : "Host Commander")} 👑 HOST
-                  </span>
-                  <span className={p1Player ? "strip-ready-tag" : "strip-waiting-tag"}>
-                    {p1Player ? "ONLINE" : "CONNECTING..."}
-                  </span>
+              <div className="row gap-2">
+                <div className="base-hp-badge">
+                  <span className="hp-label">CORE</span>
+                  <span className={hpClass(opponent?.hp ?? 100)}>{opponent?.hp ?? 100}%</span>
                 </div>
-
-                <div className="player-strip-card">
-                  <span className="text-xs font-mono text-fuchsia-400 font-bold">SLOT 2 (P2):</span>
-                  {p2Player ? (
-                    <>
-                      <span className="text-sm font-bold text-white">{p2Player.name}</span>
-                      <span className="strip-ready-tag">ONLINE</span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="text-sm text-slate-500 italic">
-                        {!isHostRole && !p2Player ? `${playerName} (Connecting...)` : "Waiting for challenger..."}
-                      </span>
-                      <span className="strip-waiting-tag">WAITING</span>
-                    </>
-                  )}
-                </div>
+                <span className="enemy-chevron" aria-hidden="true">
+                  {enemyOpen ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+                </span>
               </div>
-            </div>
-          )}
+            </button>
+            {handle && <GameBoard kind="enemy" handle={handle} coreHp={opponent?.hp ?? 100} />}
+          </section>
+        </main>
 
-          {/* Split Battlefield Grid */}
-          <main className="battlefields-row">
-            {/* Sector 1: YOUR SECTOR (Interactive) */}
-            <GameBoard
-              isInteractive={true}
-              title={`YOUR SECTOR // ${myPlayer.name}`}
-              baseHp={myPlayer.baseHp}
-              towers={myPlayer.towers}
-              incomingWaves={incomingCreeps}
-              selectedTowerType={selectedTowerType}
-              selectedPlacedTower={selectedPlacedTower}
-              onSelectPlacedTower={setSelectedPlacedTower}
-              onBuildTower={handleBuildTowerAction}
-              onLeakDamage={reportLeakDamage}
-              activeSabotages={activeSabotages}
-              playerSlot={mySlot}
-              isPaused={gameState?.isPaused}
-            />
+        <ControlHUD
+          store={handle?.store}
+          view={view}
+          me={me}
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          ghostType={ghostType}
+          onSelectTowerType={selectTowerType}
+          selectedTower={selectedTower}
+          onCloseInspector={() => setSelectedTowerId(null)}
+        />
 
-            {/* Sector 2: OPPONENT SECTOR (Live Synced View) */}
-            <GameBoard
-              isInteractive={false}
-              title={`ENEMY SECTOR // ${opponentPlayer.name}`}
-              baseHp={opponentPlayer.baseHp}
-              towers={opponentPlayer.towers}
-              incomingWaves={opponentIncomingCreeps}
-              onLeakDamage={isSoloAi ? reportBotLeakDamage : () => {}}
-              activeSabotages={activeSabotages}
-              playerSlot={mySlot === "p1" ? "p2" : "p1"}
-              isPaused={gameState?.isPaused}
-            />
-          </main>
+        {phase === "playing" && view?.pause && <PauseOverlay pause={view.pause} me={me} />}
 
-          {/* 30s Tactical Match Pause Overlay */}
-          {gameState?.isPaused && gameState.phase === "playing" && (
-            <div className="combat-pause-modal">
-              <div className="pause-card">
-                <div className="pause-icon-ring">⏸️</div>
-                <h2 className="pause-title">COMBAT PAUSED</h2>
-                <p className="pause-subtitle">
-                  Commander <strong className="text-cyan-400">{gameState.pausedPlayerName || "Opponent"}</strong> disconnected or switched tabs.
-                </p>
-                <div className="pause-timer-box">
-                  <span className="text-xs text-slate-400 font-mono tracking-wider">AUTO-FORFEIT IN</span>
-                  <span className="pause-timer-val">{gameState.pauseCountdown ?? 30}s</span>
-                </div>
-                <p className="pause-footer-text">
-                  Combat will automatically resume the moment the commander reconnects.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Bottom HUD: 4 Distinct Tabs (Armory, Raids, Bosses/Sabotage, Power Grid) */}
-          <ControlHUD
-            currentWave={gameState?.currentWaveNumber || 1}
-            playerGold={myPlayer.gold}
-            selectedTowerType={selectedTowerType}
-            onSelectTowerType={setSelectedTowerType}
-            selectedPlacedTower={
-              selectedPlacedTower
-                ? myPlayer?.towers?.find((t) => t.id === selectedPlacedTower.id) || null
-                : null
-            }
-            onCloseInspector={() => setSelectedPlacedTower(null)}
-            onUpgradeTower={upgradeTower}
-            onSellTower={(tid) => {
-              sellTower(tid);
-              setSelectedPlacedTower(null);
-            }}
-            onSendRaid={sendRaid}
-            onUpgradeEconomy={upgradeEconomy}
-            onSabotageOpponent={sabotageOpponent}
+        {phase === "game_over" && (
+          <GameOverModal
+            view={view}
+            me={me}
+            opponent={opponent}
+            isHost={!!me?.isHost}
+            isSolo={isSolo}
+            onRematch={() => handle?.store.restart()}
+            onReturnLobby={leave}
           />
+        )}
 
-          {/* Game Over Modal */}
-          {isGameOver && (
-            <GameOverModal
-              isWinner={isWinner}
-              winnerName={isWinner ? myPlayer.name : opponentPlayer.name}
-              matchTime={gameState?.matchTimeSeconds || 0}
-              myStats={myPlayer.stats}
-              myIncome={myPlayer.incomeRate}
-              onRematch={restartGame}
-              onReturnLobby={handleReturnLobby}
-            />
-          )}
-        </div>
-      )}
+        {showSettings && (
+          <SettingsMenu
+            onClose={() => setShowSettings(false)}
+            onShowTutorial={() => {
+              setShowSettings(false);
+              setShowTutorial(true);
+            }}
+          />
+        )}
+        {showTutorial && (
+          <Tutorial
+            onDone={() => {
+              settings.set({ tutorialDone: true });
+              setShowTutorial(false);
+            }}
+          />
+        )}
+      </div>
     </div>
   );
 }

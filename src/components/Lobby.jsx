@@ -1,157 +1,144 @@
-// Cyber Siege - Futuristic Matchmaker Lobby Modal
+// Main menu: callsign, solo skirmish (with difficulty) and multiplayer rooms.
 import { useState } from "react";
-import { Shield, Swords, Cpu, Users, Play, ArrowRight, Sparkles, Skull, BatteryCharging, X } from "lucide-react";
+import { Shield, Swords, Cpu, Users, Play, ArrowRight, Sparkles, BatteryCharging, X } from "lucide-react";
 
-export default function Lobby({
-  playerName,
-  setPlayerName,
-  initialRoomCode,
-  onStartSoloAi,
-  onCreateRoom,
-  onJoinRoom,
-}) {
-  const [joinCode, setJoinCode] = useState(
-    initialRoomCode && initialRoomCode !== "ALPHA1" ? initialRoomCode : ""
-  );
+const DIFFICULTIES = [
+  { id: "easy", label: "EASY" },
+  { id: "normal", label: "NORMAL" },
+  { id: "hard", label: "HARD" },
+];
 
-  const handleRandomizeName = () => {
-    const prefixes = ["Viper", "Ghost", "Apex", "Nexus", "Zero", "Pulse", "Titan", "Vortex"];
-    const nums = Math.floor(Math.random() * 89 + 10);
-    setPlayerName(`${prefixes[Math.floor(Math.random() * prefixes.length)]}-${nums}`);
+const PREFIXES = ["Viper", "Ghost", "Apex", "Nexus", "Zero", "Pulse", "Titan", "Vortex"];
+
+export default function Lobby({ playerName, setPlayerName, difficulty, setDifficulty, onStartSolo, onCreateRoom, onJoinRoom }) {
+  const [joinCode, setJoinCode] = useState("");
+  const cleanCode = joinCode.replace(/[^A-Z0-9]/g, "");
+  const canJoin = cleanCode.length >= 4;
+
+  const randomizeName = () => {
+    const n = Math.floor(Math.random() * 89 + 10);
+    setPlayerName(`${PREFIXES[Math.floor(Math.random() * PREFIXES.length)]}-${n}`);
   };
 
   return (
     <div className="lobby-overlay">
       <div className="lobby-container">
-        {/* Banner */}
         <div className="lobby-header">
-          <div className="flex items-center justify-center gap-2 mb-2">
+          <div className="row center mb-2">
             <span className="badge-pill">CYBERNETIC TOWER DEFENSE</span>
           </div>
           <h1 className="lobby-title">CYBER SIEGE</h1>
           <h2 className="lobby-subtitle">1V1 TUG-OF-WAR // LINE WARS</h2>
-          <p className="lobby-tagline">
-            Survive timed natural waves. Spam monster raids, bosses & sabotages at your opponent.
-          </p>
+          <p className="lobby-tagline">Survive timed natural waves. Spam monster raids, bosses & sabotages at your opponent.</p>
         </div>
 
-        {/* Player Name Input */}
         <div className="name-input-box">
-          <label className="input-label">COMMANDER CALLSIGN</label>
+          <label className="input-label" htmlFor="callsign">
+            COMMANDER CALLSIGN
+          </label>
           <div className="input-group">
             <input
+              id="callsign"
               type="text"
               value={playerName}
               onChange={(e) => setPlayerName(e.target.value)}
               placeholder="Enter your handle..."
               maxLength={16}
+              autoComplete="off"
               className="name-input"
             />
-            <button
-              onClick={handleRandomizeName}
-              title="Randomize callsign"
-              className="randomize-btn"
-            >
-              <Sparkles className="w-4 h-4 text-cyan-400" />
+            <button type="button" onClick={randomizeName} title="Randomize callsign" aria-label="Randomize callsign" className="randomize-btn">
+              <Sparkles size={16} className="ic-cyan" />
             </button>
           </div>
         </div>
 
-        {/* Mode Selector Cards */}
         <div className="mode-grid">
-          {/* Option 1: Solo AI Skirmish */}
           <div className="mode-card card-ai">
             <div className="mode-badge badge-amber">INSTANT PLAY</div>
             <div className="mode-icon-box">
-              <Cpu className="w-7 h-7 text-amber-400" />
+              <Cpu size={28} className="ic-amber" />
             </div>
             <h3 className="mode-card-title">SOLO SKIRMISH</h3>
-            <p className="mode-card-desc">
-              Battle against the Cyber-Vanguard AI with natural waves, bosses, and debuffs!
-            </p>
-            <button onClick={onStartSoloAi} className="mode-btn btn-ai">
-              <Play className="w-4 h-4" />
+            <p className="mode-card-desc">Battle the Cyber-Vanguard AI with natural waves, bosses and sabotage.</p>
+            <div className="segmented" role="radiogroup" aria-label="AI difficulty">
+              {DIFFICULTIES.map((d) => (
+                <button
+                  key={d.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={difficulty === d.id}
+                  className={`segment ${difficulty === d.id ? "segment-active" : ""}`}
+                  onClick={() => setDifficulty(d.id)}
+                >
+                  {d.label}
+                </button>
+              ))}
+            </div>
+            <button type="button" onClick={onStartSolo} className="mode-btn btn-ai">
+              <Play size={16} />
               <span>LAUNCH SKIRMISH</span>
             </button>
           </div>
 
-          {/* Option 2: Multiplayer 1v1 Room */}
           <div className="mode-card card-multi">
             <div className="mode-badge badge-cyan">ONLINE 1V1</div>
             <div className="mode-icon-box">
-              <Users className="w-7 h-7 text-cyan-400" />
+              <Users size={28} className="ic-cyan" />
             </div>
             <h3 className="mode-card-title">MULTIPLAYER DUEL</h3>
-            <p className="mode-card-desc">
-              Real-time 1v1 battle: share room code with a friend to duel live!
-            </p>
+            <p className="mode-card-desc">Real-time 1v1: share your room code with a friend to duel live.</p>
 
-            <div className="flex flex-col gap-2 w-full mt-2">
-              <button onClick={onCreateRoom} className="mode-btn btn-multi">
-                <Play className="w-4 h-4" />
+            <div className="stack gap-2 w-full mt-auto">
+              <button type="button" onClick={onCreateRoom} className="mode-btn btn-multi">
+                <Play size={16} />
                 <span>CREATE NEW ROOM</span>
               </button>
 
-              <div className="join-row">
+              <form
+                className="join-row"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (canJoin) onJoinRoom(cleanCode);
+                }}
+              >
                 <input
                   type="text"
+                  inputMode="text"
+                  autoCapitalize="characters"
+                  autoComplete="off"
                   placeholder="ROOM CODE"
+                  aria-label="Room code"
                   value={joinCode}
                   onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && joinCode.trim().length >= 3) {
-                      onJoinRoom(joinCode.trim());
-                    }
-                  }}
-                  maxLength={6}
+                  maxLength={8}
                   className="join-input"
                 />
                 {joinCode && (
-                  <button
-                    onClick={() => setJoinCode("")}
-                    className="clear-code-btn"
-                    title="Clear Room Code"
-                    style={{
-                      background: "rgba(255, 255, 255, 0.08)",
-                      border: "1px solid rgba(255, 255, 255, 0.15)",
-                      borderRadius: "8px",
-                      padding: "0 10px",
-                      color: "#94a3b8",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <X className="w-3.5 h-3.5" />
+                  <button type="button" onClick={() => setJoinCode("")} className="clear-code-btn" title="Clear room code" aria-label="Clear room code">
+                    <X size={14} />
                   </button>
                 )}
-                <button
-                  disabled={joinCode.length < 3}
-                  onClick={() => onJoinRoom(joinCode)}
-                  className="join-btn"
-                  title="Join Room"
-                >
-                  <ArrowRight className="w-4 h-4" />
+                <button type="submit" disabled={!canJoin} className="join-btn" title="Join room" aria-label="Join room">
+                  <ArrowRight size={16} />
                 </button>
-              </div>
+              </form>
             </div>
           </div>
         </div>
 
-        {/* Game Rules Quick Guide */}
         <div className="rules-bar">
           <div className="rule-item">
-            <Shield className="w-4 h-4 text-cyan-400" />
-            <span>Defend against timed natural waves coming every 22 seconds (+Wave Gold Bonus).</span>
+            <Shield size={16} className="ic-cyan shrink-0" />
+            <span>Defend against natural waves every 22 seconds (+wave gold bonus).</span>
           </div>
           <div className="rule-item">
-            <Swords className="w-4 h-4 text-green-400" />
-            <span>Spam monster raids & summon giant bosses to collapse enemy defenses.</span>
+            <Swords size={16} className="ic-green shrink-0" />
+            <span>Kill creeps for bounty gold. Spam raids & summon bosses at your rival.</span>
           </div>
           <div className="rule-item">
-            <BatteryCharging className="w-4 h-4 text-amber-400" />
-            <span>Upgrade your Power Grid to boost passive gold income independently!</span>
+            <BatteryCharging size={16} className="ic-amber shrink-0" />
+            <span>Upgrade your Power Grid to boost passive income.</span>
           </div>
         </div>
       </div>

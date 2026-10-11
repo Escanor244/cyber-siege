@@ -1,109 +1,91 @@
 # Cyber Siege: Line Wars ⚔️🛡️
 
-A real-time 1v1 multiplayer tug-of-war tower defense game built with **React**, **Vite**, **PartyKit**, and **HTML5 Canvas**.
+A real-time 1v1 tug-of-war tower defense game: **React + Vite + HTML5 Canvas** on the front end, a **Cloudflare Worker + Durable Object** (via `partyserver`) for multiplayer, and a full solo mode against an AI opponent.
 
 ---
 
-## 🎮 Gameplay Overview
+## 🎮 Gameplay
 
-In **Cyber Siege**, two commanders duel on mirrored battlegrounds. Players build defense towers along their sector pathway to eliminate oncoming waves while spending gold to spam monster raids, summon dread bosses, and cast orbital sabotages against the opponent!
-
-- **Natural Waves**: Escalating waves arrive every 22 seconds on both lanes, granting gold bounties on survival.
-- **Offensive Raids**: Send fast sprinters, armored mechs, drone swarms, and shield vanguard units directly into your opponent's lane.
-- **Boss Summons**: Dispatch massive Cyber Behemoths and Void Reavers that deal devastating leak damage to the enemy Core.
-- **Power Grid**: Independently upgrade your energy reactor to boost your gold income rate every 2 seconds.
-- **Orbital Sabotages**: Deploy EMP stuns, frenzy surges, and precision orbital strikes to demolish enemy defense towers.
-
----
-
-## 🛠️ Tech Stack
-
-- **Frontend**: React 19, Vite, Lucide Icons, Canvas Confetti
-- **Multiplayer Backend**: PartyKit (Cloudflare Workers Durable Objects)
-- **Audio**: Web Audio API Procedural Synthesizer
-- **Styling**: Cyberpunk Glassmorphic Vanilla CSS
+- **Natural waves** every 22 seconds on both lanes (hand-made waves 1–8, then endless escalation with a boss every 4th wave).
+- **Kill bounties**: every creep you destroy pays gold.
+- **Raids & bosses**: send creeps down your opponent's lane.
+- **Sabotage**: EMP (stuns 2 enemy turrets), Frenzy (faster enemy creeps), Orbital Strike (destroys a turret). Cooldowns are enforced by the server.
+- **Power grid**: permanent income upgrades.
+- **Armor types**:
+  - Gatlings shred light units but bounce off mechs.
+  - Mortars crack heavy armor.
+  - Tesla breaks Aegis shields.
+  - Railguns destroy bosses.
+- **Targeting modes** per turret: first / last / strongest / closest.
+- **Solo skirmish**: Easy / Normal / Hard. Smarter bots place turrets for path coverage and counter-pick raids against your turret types.
+- **Phones & tablets**: tap a tile → range preview → ✓ to build. On phones the enemy board collapses into a bar you can expand.
 
 ---
 
-## 🚀 Running Locally
+## 🧱 Architecture
 
-### 1. Installation
+```
+src/shared/      Pure game rules — run on the server AND in the browser (no DOM, seeded RNG)
+  config/        towers, creeps, spells, economy, waves, map, rule constants
+  rules/         reducer (all game rules), validation, creep ledger, wave generator, state
+  sim/           deterministic lane simulation (creeps, towers, projectiles, damage)
+  room/          RoomCore: joins, phases, clock, pause/forfeit, persistence hooks
+  bot/           solo AI
+party/index.js   Cloudflare Durable Object adapter around RoomCore
+src/net/         client store, WebSocket transport, in-browser room for solo, bot client
+src/game/        own-lane controller (runs the sim, reports kills/leaks), enemy-lane view
+src/render/      canvas renderer, art, effects, auto graphics quality
+src/components/  React UI
+tests/           Vitest unit + integration tests
+```
+
+**Who decides what.** The server owns gold, towers, spells, cooldowns, hp, waves and the result. Each player's browser simulates their *own* lane at 60 fps and reports which creeps it killed or leaked. The server's **creep ledger** pays each bounty once and applies each leak once. If a creep is never reported (for example a frozen background tab), the server counts it as a leak.
+
+**Solo mode** runs the same `RoomCore` in the browser, with the AI as a second player that plays through the same rules. Solo and multiplayer can't drift apart.
+
+---
+
+## 🚀 Running locally
+
 ```bash
 npm install
+npm run server:dev   # multiplayer server (Cloudflare Worker) on :1999
+npm run dev          # game on http://localhost:3000
 ```
 
-### 2. Start Both Dev Servers
-Run both client and multiplayer server in separate terminals:
+Solo mode works without the server.
+
+### Tests & checks
 
 ```bash
-# Terminal 1: Client Dev Server (port 3000)
-npm run dev
-
-# Terminal 2: PartyKit Multiplayer Server (port 1999)
-npm run server:dev
+npm test             # unit + integration tests (rules, simulation, rooms, solo, bots)
+npm run lint
+npm run build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
-
 ---
 
-## 🌐 How to Deploy (Step-by-Step)
+## 🌐 Deploying (free tiers)
 
-Deploying Cyber Siege is completely **free** and takes 2 simple steps:
+### 1. Multiplayer server → Cloudflare Workers
 
-### Step 1: Deploy the Multiplayer Server (Cloudflare Workers via Wrangler)
-Cloudflare acquired PartyKit and now hosts PartyServer directly on your free Cloudflare account with zero limits or fees.
+```bash
+npx wrangler login
+npm run server:deploy
+```
 
-1. In your terminal, run:
-   ```bash
-   npx wrangler login
-   ```
-   *(Opens browser to log in or create a free Cloudflare account in 10 seconds)*
+Wrangler prints your URL, e.g. `https://cyber-siege.<you>.workers.dev`.
 
-2. Deploy the server:
-   ```bash
-   npm run server:deploy
-   # (or: npx wrangler deploy)
-   ```
-3. Once deployed, Wrangler outputs your live URL, for example:
-   ```text
-   Uploaded cyber-siege (X.XX sec)
-   Deployed to https://cyber-siege.<your-subdomain>.workers.dev
-   ```
-4. Copy your live domain: `cyber-siege.<your-subdomain>.workers.dev`.
+### 2. Frontend → Vercel
 
----
-
-### Step 2: Deploy the Frontend to Vercel
-
-1. Go to [Vercel](https://vercel.com/) and click **"Add New Project"**.
-2. Select your GitHub repository: `Escanor244/cyber-siege`.
-3. In the project configuration:
-   - **Framework Preset**: Vite (detected automatically)
-   - **Build Command**: `npm run build`
-   - **Output Directory**: `dist`
-4. Expand **"Environment Variables"** (or drag & drop your `.env` file):
+1. Import the GitHub repo in Vercel (framework preset: **Vite**, build `npm run build`, output `dist`).
+2. Add the environment variable:
    ```env
-   VITE_PARTYKIT_HOST=cyber-siege.<your-subdomain>.workers.dev
+   VITE_PARTYKIT_HOST=cyber-siege.<you>.workers.dev
    ```
-5. Click **"Deploy"**.
-6. In ~30 seconds, Vercel will give you a live production link (e.g. `https://cyber-siege.vercel.app`)!
+3. Deploy. Redeploy whenever you change the variable, because it's baked in at build time.
 
-> **Tip**: You can also copy [`.env.example`](file:///c:/Users/deepa/OneDrive/Desktop/games/td/cyber-siege/.env.example) to `.env` or drag-and-drop it into the Vercel environment variables box!
-
----
-
-## 📦 How to Create a Release on GitHub
-
-To create a downloadable version release (e.g. `v1.0.0`):
-
-1. Go to your repo on GitHub: [https://github.com/Escanor244/cyber-siege](https://github.com/Escanor244/cyber-siege)
-2. On the right-hand sidebar, click **"Releases"** (or click **"Create a new release"**).
-3. Click **"Draft a new release"**.
-4. Click **"Choose a tag"**, type `v1.0.0`, and select **"Create new tag"**.
-5. Set Release title: `Cyber Siege v1.0.0 - Production Launch`.
-6. Add notes describing the release features and click **"Publish release"**.
-7. GitHub will automatically attach `.zip` and `.tar.gz` source code downloads under that release!
+> The server and client must be deployed from the same version. The game checks a protocol version and asks players to refresh if they don't match.
 
 ---
 

@@ -1,8 +1,29 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["react", "oxc"],
+  "ignorePatterns": ["dist", ".wrangler", ".partykit"],
   "rules": {
     "react/rules-of-hooks": "error",
     "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
+  },
+  "overrides": [
+    {
+      "files": ["src/shared/**"],
+      "rules": {
+        "no-restricted-globals": [
+          "error",
+          { "name": "window", "message": "src/shared must run on the server too." },
+          { "name": "document", "message": "src/shared must run on the server too." },
+          { "name": "localStorage", "message": "src/shared must run on the server too." },
+          { "name": "sessionStorage", "message": "src/shared must run on the server too." },
+          { "name": "performance", "message": "Inject time instead (determinism)." },
+          { "name": "Date", "message": "Inject time instead (determinism)." }
+        ],
+        "no-restricted-properties": [
+          "error",
+          { "object": "Math", "property": "random", "message": "Use the seeded rng from src/shared/rng.js." }
+        ]
+      }
+    }
+  ]
 }
