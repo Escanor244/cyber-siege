@@ -59,8 +59,8 @@ describe("bot", () => {
     const rng = createRng(1).holder;
     const gatlings = Array.from({ length: 5 }, (_, i) => ({ id: `t${i}`, type: "gatling" }));
     const picks = Array.from({ length: 40 }, () => pickCounterRaid(Object.keys(CREEP_RAIDS), gatlings, rng));
-    const mechs = picks.filter((p) => p === "armored_squad").length;
-    expect(mechs).toBeGreaterThan(20); // heavy armor resists kinetic
+    const heavy = picks.filter((p) => CREEP_RAIDS[p].armor === "heavy").length;
+    expect(heavy).toBeGreaterThan(24); // heavy armor (mechs, jammers) resists kinetic
   });
 
   it("never sends an action the room would reject (randomised states)", () => {

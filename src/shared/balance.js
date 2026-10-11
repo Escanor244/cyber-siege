@@ -39,8 +39,10 @@ export function towerDamage(towerDef, level) {
   return Math.round(towerDef.damage * (1 + (level - 1) * 0.35));
 }
 
+// +12% range per level, capped at +60% so a maxed turret can never cover the whole map
+export const MAX_RANGE_BONUS = 0.6;
 export function towerRange(towerDef, level) {
-  return towerDef.range * (1 + (level - 1) * 0.12);
+  return towerDef.range * (1 + Math.min(MAX_RANGE_BONUS, (level - 1) * 0.12));
 }
 
 // Cost to go from `level` to `level + 1`

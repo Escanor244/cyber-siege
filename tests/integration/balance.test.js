@@ -13,6 +13,8 @@ const BUILD_ORDER = [
   ["plasma", 6, 2], ["tesla", 1, 2], ["railgun", 8, 7], ["cryo", 4, 7],
 ];
 
+const LIMIT_MS = 15 * 60_000;
+
 async function survivalTime(difficulty, seed) {
   const local = createLocalRoom({ difficulty, seed, timers, now });
   const store = createClientStore({ transport: local.humanTransport, intent: "create", name: "Baseline", now });
@@ -43,14 +45,14 @@ async function survivalTime(difficulty, seed) {
     }
   }, 1500);
 
-  const LIMIT_MS = 15 * 60_000;
   let elapsed = 0;
   while (store.getState().view.phase === "playing" && elapsed < LIMIT_MS) {
     await advance(10_000);
     elapsed += 10_000;
   }
   const view = store.getState().view;
-  const result = { matchMs: view.matchMs, humanWon: view.winnerId === store.getState().playerId, ended: view.phase === "game_over" };
+  const hp = view.players.find((p) => p.id === store.getState().playerId)?.hp ?? 0;
+  const result = { matchMs: view.matchMs, hp, humanWon: view.winnerId === store.getState().playerId, ended: view.phase === "game_over" };
   clearInterval(brain);
   clearInterval(laneLoop);
   lane.destroy();
@@ -62,20 +64,24 @@ beforeEach(() => useFakeClock());
 afterEach(() => vi.useRealTimers());
 
 describe("AI difficulty is ordered", () => {
-  it("a fixed player survives longest against Easy and shortest against Hard", async () => {
+  it("a fixed player is pressured least by Easy and most by Hard", async () => {
     const seeds = [11, 22, 33];
     const score = {};
+    const results = [];
     for (const difficulty of ["easy", "normal", "hard"]) {
       let total = 0;
       for (const seed of seeds) {
         const r = await survivalTime(difficulty, seed);
-        // A win counts as surviving the full limit plus a bonus
-        total += r.humanWon ? 20 * 60_000 : r.matchMs;
+        // Pressure the bot put on the player: core damage taken if the player won,
+        // otherwise 100 plus how quickly the bot broke through.
+        total += r.humanWon ? 100 - r.hp : 100 + (100 * (LIMIT_MS - r.matchMs)) / LIMIT_MS;
+        results.push(`${difficulty}#${seed}: ${r.humanWon ? "player won" : "bot won"} at ${Math.round(r.matchMs / 1000)}s, player hp ${r.hp}`);
       }
       score[difficulty] = total / seeds.length;
     }
-    console.log("average survival (s):", Object.fromEntries(Object.entries(score).map(([k, v]) => [k, Math.round(v / 1000)])));
-    expect(score.easy).toBeGreaterThan(score.normal);
-    expect(score.normal).toBeGreaterThan(score.hard);
+    console.log(results.join("\n"));
+    console.log("average pressure (0-100 = player won, damage taken; >100 = bot won):", score);
+    expect(score.normal).toBeGreaterThan(score.easy);
+    expect(score.hard).toBeGreaterThan(score.normal);
   }, 240_000);
 });

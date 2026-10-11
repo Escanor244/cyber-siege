@@ -6,7 +6,7 @@
 // The ledger is a plain object stored inside the match so it persists with it.
 
 import { findCreepDefinition } from "../config/creeps.js";
-import { PATH_LENGTH_PX } from "../config/map.js";
+import { PATH_LENGTH_PX, AIR_PATH_LENGTH } from "../config/map.js";
 import {
   SPAWN_LEAD_MS,
   SPAWN_STAGGER_MS,
@@ -23,7 +23,8 @@ export function createLedger() {
 
 // Worst-case time for a creep of this speed to walk the whole path.
 export function worstCaseTravelMs(def) {
-  return (PATH_LENGTH_PX / (def.speed * 60 * SLOW_FLOOR)) * 1000;
+  const length = def.flying ? AIR_PATH_LENGTH : PATH_LENGTH_PX;
+  return (length / (def.speed * 60 * SLOW_FLOOR)) * 1000;
 }
 
 export function creepDeadline(def, spawnAt) {

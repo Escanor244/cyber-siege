@@ -32,6 +32,10 @@ export const PATH_LENGTH_PX = PIXEL_PATH.reduce((sum, pt, i) => {
   return sum + Math.hypot(pt.x - prev.x, pt.y - prev.y);
 }, 0);
 
+// Flyers ignore the corridor and fly straight from the portal to the core.
+export const AIR_PATH = Object.freeze([PIXEL_PATH[0], PIXEL_PATH[PIXEL_PATH.length - 1]]);
+export const AIR_PATH_LENGTH = Math.hypot(AIR_PATH[1].x - AIR_PATH[0].x, AIR_PATH[1].y - AIR_PATH[0].y);
+
 const pathCells = new Set();
 for (let i = 0; i < PATH_WAYPOINTS.length - 1; i++) {
   const a = PATH_WAYPOINTS[i];

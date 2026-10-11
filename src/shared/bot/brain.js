@@ -68,7 +68,11 @@ export function pickCounterRaid(options, enemyTowers, rngHolder) {
   for (const id of options) {
     const def = CREEP_RAIDS[id] || BOSS_SUMMONS[id];
     let resist = 0;
-    for (const t of enemyTowers) resist += 1 / damageMultiplier(TOWERS[t.type]?.damageType, def.armor);
+    for (const t of enemyTowers) {
+      const tdef = TOWERS[t.type];
+      // A turret that can't shoot flyers is useless against them
+      resist += def.flying && !tdef?.canHitAir ? 4 : 1 / damageMultiplier(tdef?.damageType, def.armor);
+    }
     const score = resist / enemyTowers.length + nextRandom(rngHolder) * 0.35;
     if (score > bestScore) {
       best = id;
@@ -98,7 +102,8 @@ export function decideBotActions(match, botId, rngHolder, difficulty = "normal")
 
   // 1. Defense
   if (botView.towers.length < cfg.maxTowers && nextRandom(rngHolder) < cfg.buildChance) {
-    const types = Object.keys(TOWERS).filter((t) => t !== "railgun" || match.wave >= 5);
+    const unlockWave = { railgun: 5, flak: 7 };
+    const types = Object.keys(TOWERS).filter((t) => match.wave >= (unlockWave[t] || 0));
     const affordable = types.filter((t) => canAfford(TOWERS[t].cost));
     if (affordable.length > 0) {
       const type = affordable[randomInt(rngHolder, affordable.length)];

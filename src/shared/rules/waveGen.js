@@ -6,19 +6,33 @@ import { findCreepDefinition } from "../config/creeps.js";
 import { scaleCreep } from "../balance.js";
 
 const GROWTH_PER_WAVE = 1.07; // on top of the per-level hp scaling
-const MAX_INDIVIDUALS = 110; // keeps lanes playable on phones
+const MAX_INDIVIDUALS = 100; // keeps lanes playable on phones (padding bosses may add a few)
+// Themes rotate wave by wave; air and support units appear from wave 9 on.
 const THEMES = [
   { name: "Swarm Surge", pool: ["scout_rush", "drone_swarm"] },
-  { name: "Iron Column", pool: ["armored_squad", "aegis_vanguard", "armored_squad"] },
-  { name: "Combined Assault", pool: ["scout_rush", "armored_squad", "drone_swarm", "aegis_vanguard"] },
+  { name: "Iron Column", pool: ["armored_squad", "aegis_vanguard", "armored_squad", "signal_jammer"] },
+  { name: "Combined Assault", pool: ["scout_rush", "armored_squad", "drone_swarm", "nanite_mender"] },
+  { name: "Air Raid", pool: ["sky_skimmer", "scout_rush", "sky_skimmer"] },
+  { name: "Support Column", pool: ["armored_squad", "nanite_mender", "aegis_vanguard", "signal_jammer"] },
 ];
+// Boss waves cycle through every boss so each one shows up regularly
+const BOSS_ROTATION = ["void_reaver", "warden_titan", "storm_leviathan"];
+const ESCORT_BOSS = { void_reaver: "cyber_behemoth", warden_titan: "cyber_behemoth", storm_leviathan: "cyber_behemoth" };
 
-// Effective threat of a wave: total scaled hp, weighted by speed.
+// Flyers skip most of the path and support units multiply their allies' threat
+function threatWeight(def) {
+  let w = 1;
+  if (def.flying) w *= 1.3;
+  if (def.healAura || def.jamAura || def.empPulse) w *= 1.25;
+  return w;
+}
+
+// Effective threat of a wave: total scaled hp, weighted by speed and abilities.
 export function waveThreat(wave, waveNumber = wave.wave) {
   let total = 0;
   for (const entry of wave.creeps) {
     const def = findCreepDefinition(entry.type);
-    const per = scaleCreep(def, waveNumber).hp * Math.sqrt(def.speed);
+    const per = scaleCreep(def, waveNumber).hp * Math.sqrt(def.speed) * threatWeight(def);
     total += per * entry.count * (def.count || 1);
   }
   return total;
@@ -44,18 +58,22 @@ function generateWave(n) {
   const isBossWave = n % 4 === 0;
   const theme = THEMES[n % THEMES.length];
   const creeps = [];
+  let lead = null;
 
   if (isBossWave) {
     // Bosses take up to ~75% of the budget; escorts fill the rest.
-    creeps.push({ type: "void_reaver", count: 1 });
+    lead = BOSS_ROTATION[(n / 4) % BOSS_ROTATION.length];
+    const escort = ESCORT_BOSS[lead];
+    creeps.push({ type: lead, count: 1 });
     const bossShare = budget * 0.75;
     while (waveThreat({ creeps }, n) < bossShare) {
-      const reavers = creeps[0].count;
-      const behemoths = creeps.find((e) => e.type === "cyber_behemoth")?.count || 0;
-      addGroup(creeps, behemoths < reavers * 2 ? "cyber_behemoth" : "void_reaver");
+      const leads = creeps[0].count;
+      const escorts = creeps.find((e) => e.type === escort)?.count || 0;
+      const next = escorts < leads * 2 ? escort : lead;
+      addGroup(creeps, next);
       if (waveThreat({ creeps }, n) > budget) {
         // Undo an overshoot so the rest of the budget goes to escorts
-        const last = creeps.find((e) => e.type === (behemoths < reavers * 2 ? "cyber_behemoth" : "void_reaver"));
+        const last = creeps.find((e) => e.type === next);
         last.count -= 1;
         if (last.count === 0) creeps.splice(creeps.indexOf(last), 1);
         break;
@@ -81,7 +99,7 @@ function generateWave(n) {
 
   return {
     wave: n,
-    name: isBossWave ? `⚠️ BOSS SIEGE Lv.${n}` : `${theme.name} Lv.${n}`,
+    name: isBossWave ? `⚠️ BOSS: ${findCreepDefinition(lead).name.toUpperCase()} Lv.${n}` : `${theme.name} Lv.${n}`,
     creeps,
     isBossWave,
   };

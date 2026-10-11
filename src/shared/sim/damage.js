@@ -9,6 +9,7 @@ export const DAMAGE_TABLE = {
   explosive: { light: 1, heavy: 1.2, shielded: 0.85, boss: 1 },
   energy: { light: 1, heavy: 0.9, shielded: 1.5, boss: 1 },
   pierce: { light: 0.8, heavy: 1.3, shielded: 1, boss: 1.5 },
+  flak: { light: 1, heavy: 1, shielded: 1, boss: 1 }, // air/ground multipliers live on the tower
 };
 
 // Creeps inside an Aegis Vanguard's aura take this fraction of damage.

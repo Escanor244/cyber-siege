@@ -57,6 +57,48 @@ export const CREEP_RAIDS = {
     color: "#06b6d4",
     desc: "Shield aura: nearby creeps take 30% less damage. Tesla breaks it.",
   },
+  sky_skimmer: {
+    id: "sky_skimmer",
+    armor: "light",
+    name: "Sky Skimmers (x4)",
+    cost: 140,
+    hp: 70,
+    speed: 1.1,
+    size: 11,
+    bounty: 9,
+    count: 4,
+    flying: true,
+    color: "#38bdf8",
+    desc: "Flyers that skip the path. Mortar & Cryo can't hit them.",
+  },
+  nanite_mender: {
+    id: "nanite_mender",
+    armor: "light",
+    name: "Nanite Mender",
+    cost: 180,
+    hp: 300,
+    speed: 1.0,
+    size: 17,
+    bounty: 40,
+    count: 1,
+    healAura: { radius: 70, hpPerSec: 18 }, // scales with creep level
+    color: "#f472b6",
+    desc: "Repairs nearby creeps by 18 HP/s. Kill it first!",
+  },
+  signal_jammer: {
+    id: "signal_jammer",
+    armor: "heavy",
+    name: "Signal Jammer",
+    cost: 200,
+    hp: 380,
+    speed: 0.9,
+    size: 17,
+    bounty: 45,
+    count: 1,
+    jamAura: { radius: 75, fireRateMultiplier: 0.6 },
+    color: "#fde047",
+    desc: "Jams turrets in range: they fire 40% slower.",
+  },
 };
 
 // Boss summons
@@ -89,7 +131,41 @@ export const BOSS_SUMMONS = {
     color: "#e11d48",
     desc: "Colossal dread titan. Devastating endgame strike.",
   },
+  storm_leviathan: {
+    id: "storm_leviathan",
+    armor: "boss",
+    name: "Storm Leviathan",
+    cost: 650,
+    hp: 3600,
+    speed: 0.32,
+    size: 30,
+    bounty: 260,
+    leakDamage: 35,
+    isBoss: true,
+    flying: true,
+    color: "#60a5fa",
+    desc: "Flying titan straight at your core. Needs anti-air!",
+  },
+  warden_titan: {
+    id: "warden_titan",
+    armor: "boss",
+    name: "Warden Titan",
+    cost: 560,
+    hp: 3200,
+    speed: 0.55,
+    size: 30,
+    bounty: 230,
+    leakDamage: 30,
+    isBoss: true,
+    empPulse: { radius: 110, everyMs: 6000, stunMs: 1500 },
+    color: "#a3e635",
+    desc: "Every 6s an EMP pulse stuns nearby turrets for 1.5s.",
+  },
 };
+
+export function isFlying(typeId) {
+  return !!findCreepDefinition(typeId)?.flying;
+}
 
 // Returns the definition for a creep or boss id, or null for unknown ids.
 export function findCreepDefinition(typeId) {
