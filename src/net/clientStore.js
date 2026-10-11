@@ -255,12 +255,15 @@ export function createClientStore({
     getState: () => state,
     subscribe(fn) {
       listeners.add(fn);
-      return () => listeners.delete(fn);
+      return () => {
+        listeners.delete(fn);
+      };
     },
     on(type, fn) {
       if (!handlers.has(type)) handlers.set(type, new Set());
       handlers.get(type).add(fn);
-      return () => handlers.get(type).delete(fn);
+      // Safe to call after destroy(): React may unsubscribe after the store is gone
+      return () => handlers.get(type)?.delete(fn);
     },
     // Best estimate of the server's match clock right now.
     matchNow() {

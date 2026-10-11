@@ -36,6 +36,19 @@ import {
 } from "../rules/reducer.js";
 
 const SNAPSHOT_VERSION = 1;
+
+export const OUTDATED_CLIENT_MESSAGE =
+  "Cyber Siege was updated! Please refresh this page (Ctrl+Shift+R, or pull down to reload on mobile) to play.";
+
+// Messages from the v1 client (before the overhaul) carry a sessionId and old type names.
+function isLegacyClientMessage(text) {
+  try {
+    const m = JSON.parse(text);
+    return !!m && typeof m === "object" && (m.type === "join" || "sessionId" in m);
+  } catch {
+    return false;
+  }
+}
 const PERSIST_EVERY_MS = 5000;
 const MIN_SNAP_INTERVAL_MS = 90;
 
@@ -155,8 +168,18 @@ export class RoomCore {
   }
 
   handleMessage(connId, raw) {
-    const msg = parseClientMessage(typeof raw === "string" ? raw : String(raw));
-    if (!msg) return;
+    const text = typeof raw === "string" ? raw : String(raw);
+    const msg = parseClientMessage(text);
+    if (!msg) {
+      // A browser still running the previous version of the game (cached page)
+      // speaks the old protocol. Tell it to refresh instead of leaving it hanging;
+      // old clients show the `room-closed` reason and return to their menu.
+      if (isLegacyClientMessage(text)) {
+        this.io.send(connId, { type: "room-closed", reason: OUTDATED_CLIENT_MESSAGE });
+        this.io.close(connId, 4000, "outdated client");
+      }
+      return;
+    }
 
     if (msg.type === "hello") return this.onHello(connId, msg);
     if (msg.type === "ping") {
