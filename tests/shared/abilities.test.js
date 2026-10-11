@@ -47,8 +47,8 @@ describe("tower abilities", () => {
 
   it("Railgun slug pierces every creep on its line", () => {
     const lane = createLane();
-    // Railgun left of the first corridor segment, firing along it
-    setTowers(lane, [{ id: "r", type: "railgun", gridX: 0, gridY: 0, level: 1 }]);
+    // Railgun at the end of the first corridor row (cell 8,1), firing straight down it
+    setTowers(lane, [{ id: "r", type: "railgun", gridX: 8, gridY: 1, level: 1 }]);
     const group = creeps([{ type: "scout_rush", count: 1 }], { spawnAt: 0, hp: 100000 });
     addCreeps(lane, group.map((e, i) => ({ ...e, spawnAt: i * 150 })));
     const events = run(lane, 2500);
@@ -147,24 +147,31 @@ describe("creep abilities", () => {
   });
 
   it("Signal Jammer makes turrets in range fire 40% slower", () => {
-    const shots = (withJammer) => {
+    // Average gap between the first shots, while the jammer walks past the turret
+    const fireGap = (withJammer) => {
       const lane = createLane();
       setTowers(lane, [{ id: "g", type: "gatling", gridX: 1, gridY: 0, level: 1 }]);
       const list = [{ ...creeps([{ type: "armored_squad", count: 1 }], { spawnAt: 0, hp: 1e9 })[0], id: 1 }];
       if (withJammer) list.push({ ...creeps([{ type: "signal_jammer", count: 1 }], { spawnAt: 0, hp: 1e9 })[0], id: 2 });
       addCreeps(lane, list);
-      return run(lane, 3000).filter((e) => e.type === "fire").length;
+      const times = [];
+      while (times.length < 4) {
+        stepLane(lane);
+        for (const e of drainEvents(lane)) if (e.type === "fire") times.push(lane.t);
+      }
+      return (times[3] - times[0]) / 3;
     };
-    const normal = shots(false);
-    const jammed = shots(true);
-    expect(jammed).toBeLessThan(normal * 0.75);
-    expect(jammed).toBeGreaterThan(normal * 0.45);
+    const normal = fireGap(false);
+    const jammed = fireGap(true);
+    // 40% slower fire rate = 1 / 0.6 longer between shots
+    expect(jammed / normal).toBeCloseTo(1 / CREEP_RAIDS.signal_jammer.jamAura.fireRateMultiplier, 1);
   });
 
   it("Warden Titan's EMP pulse stuns nearby turrets", () => {
     const lane = createLane();
     setTowers(lane, [
-      { id: "near", type: "gatling", gridX: 1, gridY: 0, level: 1 },
+      // where the titan will be when its first pulse fires (~6s of walking)
+      { id: "near", type: "gatling", gridX: 4, gridY: 0, level: 1 },
       { id: "far", type: "gatling", gridX: 9, gridY: 0, level: 1 },
     ]);
     addCreeps(lane, creeps([{ type: "warden_titan", count: 1 }], { spawnAt: 0, hp: 1e9 }));

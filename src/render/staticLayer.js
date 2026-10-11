@@ -111,6 +111,27 @@ function drawCorridor(g, detail) {
 }
 
 
+// Faint chevrons along the flyers' straight route, so players know where to put anti-air
+function drawAirLane(g) {
+  const a = PIXEL_PATH[0];
+  const b = PIXEL_PATH[PIXEL_PATH.length - 1];
+  const len = Math.hypot(b.x - a.x, b.y - a.y);
+  const ang = Math.atan2(b.y - a.y, b.x - a.x);
+  g.save();
+  g.translate(a.x, a.y);
+  g.rotate(ang);
+  g.strokeStyle = "rgba(56, 189, 248, 0.16)";
+  g.lineWidth = 1.5;
+  for (let d = 40; d < len - 30; d += 26) {
+    g.beginPath();
+    g.moveTo(d - 4, -5);
+    g.lineTo(d + 2, 0);
+    g.lineTo(d - 4, 5);
+    g.stroke();
+  }
+  g.restore();
+}
+
 function drawPads(g) {
   // Portal pad
   const portal = PIXEL_PATH[0];
@@ -148,6 +169,7 @@ export function groundLayer(scale, detail = true) {
     g.setTransform(scale, 0, 0, scale, 0, 0);
     drawTerrain(g, detail);
     drawCorridor(g, detail);
+    drawAirLane(g);
     drawPads(g);
     cache.set(key, layer);
   }

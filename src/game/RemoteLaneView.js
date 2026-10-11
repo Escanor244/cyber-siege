@@ -120,6 +120,7 @@ export class RemoteLaneView {
           maxHp: entry.hp,
           radius: def.size || 14,
           isBoss: !!def.isBoss,
+          flying: !!def.flying,
           color: def.color,
           slowed: !!(cb || ca).slowed,
           flash: false,

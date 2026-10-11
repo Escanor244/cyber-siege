@@ -516,6 +516,21 @@ export function drawCreepAsset(ctx, creep, time) {
     case "void_reaver":
       drawVoidReaverBoss(ctx, creep, r, tier, time);
       break;
+    case "sky_skimmer":
+      drawSkySkimmer(ctx, creep, r, tier, time);
+      break;
+    case "nanite_mender":
+      drawNaniteMender(ctx, creep, r, tier, time);
+      break;
+    case "signal_jammer":
+      drawSignalJammer(ctx, creep, r, tier, time);
+      break;
+    case "storm_leviathan":
+      drawStormLeviathan(ctx, creep, r, tier, time);
+      break;
+    case "warden_titan":
+      drawWardenTitan(ctx, creep, r, tier, time);
+      break;
     default:
       drawDefaultCreep(ctx, creep, r, tier, time);
       break;
@@ -759,6 +774,206 @@ function drawVoidReaverBoss(ctx, creep, r, tier, time) {
   ctx.beginPath();
   ctx.ellipse(0, 0, r * 0.5, r * 0.25, time * 0.002, 0, Math.PI * 2);
   ctx.fill();
+}
+
+// --- SKY SKIMMER (flying interceptor; drawn facing its flight direction) ---
+function drawSkySkimmer(ctx, creep, r, tier, time) {
+  const flicker = 0.7 + Math.sin(time * 0.05) * 0.3;
+  // Twin engine glow
+  drawGlow(ctx, -r * 0.9, -r * 0.35, r * 0.9, "#38bdf8", flicker);
+  drawGlow(ctx, -r * 0.9, r * 0.35, r * 0.9, "#38bdf8", flicker);
+  // Swept wings
+  ctx.fillStyle = "#0c4a6e";
+  ctx.beginPath();
+  ctx.moveTo(r * 0.2, 0);
+  ctx.lineTo(-r * 0.7, -r * 1.25);
+  ctx.lineTo(-r * 0.95, -r * 1.1);
+  ctx.lineTo(-r * 0.5, 0);
+  ctx.lineTo(-r * 0.95, r * 1.1);
+  ctx.lineTo(-r * 0.7, r * 1.25);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = tier === 3 ? "#fbbf24" : "#7dd3fc";
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+  // Fuselage
+  ctx.fillStyle = creep.color || "#38bdf8";
+  ctx.beginPath();
+  ctx.moveTo(r * 1.2, 0);
+  ctx.lineTo(-r * 0.9, -r * 0.35);
+  ctx.lineTo(-r * 0.9, r * 0.35);
+  ctx.closePath();
+  ctx.fill();
+  // Canopy
+  ctx.fillStyle = "#e0f2fe";
+  ctx.beginPath();
+  ctx.ellipse(r * 0.35, 0, r * 0.35, r * 0.18, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// --- NANITE MENDER (support: repairs allies; pink medic pod) ---
+function drawNaniteMender(ctx, creep, r, tier, time) {
+  const pulse = (time * 0.0012) % 1;
+  // Expanding repair wave
+  ctx.strokeStyle = `rgba(244, 114, 182, ${0.5 * (1 - pulse)})`;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(0, 0, r + pulse * 50, 0, Math.PI * 2);
+  ctx.stroke();
+  // Rounded pod
+  drawGlow(ctx, 0, 0, r * 1.6, "#f472b6", 0.45);
+  ctx.fillStyle = "#4a1030";
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = creep.color || "#f472b6";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  // Medical cross
+  ctx.fillStyle = "#fdf2f8";
+  const a = r * 0.55;
+  const b = r * 0.2;
+  ctx.fillRect(-a, -b, a * 2, b * 2);
+  ctx.fillRect(-b, -a, b * 2, a * 2);
+  // Orbiting nanite swarm
+  const motes = tier + 3;
+  ctx.fillStyle = "#fbcfe8";
+  for (let i = 0; i < motes; i++) {
+    const ang = time * 0.004 + (i * Math.PI * 2) / motes;
+    ctx.beginPath();
+    ctx.arc(Math.cos(ang) * (r + 5), Math.sin(ang) * (r + 5), 1.6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+// --- SIGNAL JAMMER (debuffs turrets; walker with a broadcasting dish) ---
+function drawSignalJammer(ctx, creep, r, tier, time) {
+  // Interference rings broadcasting outward
+  for (let i = 0; i < 2; i++) {
+    const p = (time * 0.001 + i * 0.5) % 1;
+    ctx.strokeStyle = `rgba(253, 224, 71, ${0.55 * (1 - p)})`;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.arc(0, 0, r + p * 55, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  // Four-legged walker body (square, rotated 45deg)
+  ctx.fillStyle = "#3f3a10";
+  ctx.save();
+  ctx.rotate(Math.PI / 4);
+  ctx.beginPath();
+  ctx.roundRect(-r * 0.8, -r * 0.8, r * 1.6, r * 1.6, 4);
+  ctx.fill();
+  ctx.strokeStyle = creep.color || "#fde047";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.restore();
+  // Legs
+  ctx.strokeStyle = "#a16207";
+  ctx.lineWidth = 2.5;
+  const step = Math.sin(time * 0.012) * 2;
+  for (const [x, y] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) {
+    ctx.beginPath();
+    ctx.moveTo(x * r * 0.5, y * r * 0.5);
+    ctx.lineTo(x * (r + 3 + step * x * y), y * (r + 3));
+    ctx.stroke();
+  }
+  // Rotating dish
+  ctx.save();
+  ctx.rotate(time * 0.003);
+  ctx.strokeStyle = "#fef08a";
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 0.55, -1, 1);
+  ctx.stroke();
+  ctx.fillStyle = "#fef08a";
+  ctx.fillRect(0, -1, r * 0.6, 2);
+  ctx.restore();
+  ctx.fillStyle = tier === 3 ? "#ef4444" : "#facc15";
+  ctx.beginPath();
+  ctx.arc(0, 0, 3, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// --- STORM LEVIATHAN (flying boss: storm manta, faces its flight direction) ---
+function drawStormLeviathan(ctx, creep, r, tier, time) {
+  const flap = Math.sin(time * 0.004) * 0.12;
+  drawGlow(ctx, 0, 0, r * 2.2, "#60a5fa", 0.55);
+  // Manta wings
+  ctx.fillStyle = "#1e3a8a";
+  ctx.beginPath();
+  ctx.moveTo(r * 0.9, 0);
+  ctx.quadraticCurveTo(r * 0.1, -r * (1.5 + flap), -r * 0.6, -r * (1.35 + flap));
+  ctx.quadraticCurveTo(-r * 0.3, -r * 0.4, -r * 0.8, 0);
+  ctx.quadraticCurveTo(-r * 0.3, r * 0.4, -r * 0.6, r * (1.35 + flap));
+  ctx.quadraticCurveTo(r * 0.1, r * (1.5 + flap), r * 0.9, 0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = creep.color || "#60a5fa";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  // Tail
+  ctx.strokeStyle = "#93c5fd";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.8, 0);
+  ctx.quadraticCurveTo(-r * 1.4, Math.sin(time * 0.006) * r * 0.3, -r * 1.9, 0);
+  ctx.stroke();
+  // Storm core + lightning crackle along the wings
+  ctx.fillStyle = tier === 3 ? "#fbbf24" : "#dbeafe";
+  ctx.beginPath();
+  ctx.ellipse(r * 0.2, 0, r * 0.35, r * 0.22, 0, 0, Math.PI * 2);
+  ctx.fill();
+  if (Math.sin(time * 0.02) > 0.3) {
+    ctx.strokeStyle = "rgba(224, 242, 254, 0.9)";
+    ctx.lineWidth = 1.3;
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(r * 0.1, side * r * 0.2);
+      ctx.lineTo(-r * 0.15, side * r * 0.65);
+      ctx.lineTo(r * 0.05, side * r * 0.8);
+      ctx.lineTo(-r * 0.35, side * r * 1.2);
+      ctx.stroke();
+    }
+  }
+}
+
+// --- WARDEN TITAN (boss: fortress walker that EMPs turrets) ---
+function drawWardenTitan(ctx, creep, r, tier, time) {
+  drawGlow(ctx, 0, 0, r * 1.9, "#a3e635", 0.45);
+  // Heavy octagon hull
+  ctx.fillStyle = "#1a2e05";
+  ctx.beginPath();
+  for (let i = 0; i < 8; i++) {
+    const a = Math.PI / 8 + (i * Math.PI) / 4;
+    ctx[i === 0 ? "moveTo" : "lineTo"](Math.cos(a) * r, Math.sin(a) * r);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = creep.color || "#a3e635";
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  // Four EMP emitter nodes that charge between pulses
+  const charge = (time * 0.0004) % 1;
+  for (let i = 0; i < 4; i++) {
+    const a = (i * Math.PI) / 2;
+    const x = Math.cos(a) * r * 0.62;
+    const y = Math.sin(a) * r * 0.62;
+    drawGlow(ctx, x, y, 8, "#bef264", 0.3 + charge * 0.7);
+    ctx.fillStyle = `rgba(217, 249, 157, ${0.4 + charge * 0.6})`;
+    ctx.beginPath();
+    ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // Armoured core with a visor
+  ctx.fillStyle = "#365314";
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 0.4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = tier === 3 ? "#fbbf24" : "#ecfccb";
+  ctx.fillRect(-r * 0.3, -2.5, r * 0.6, 5);
 }
 
 function drawDefaultCreep(ctx, creep, r, tier, time) {

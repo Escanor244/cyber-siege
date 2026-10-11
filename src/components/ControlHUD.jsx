@@ -60,7 +60,7 @@ export default function ControlHUD({ store, view, me, activeTab, setActiveTab, g
 
       <div className="hud-content">
         {activeTab === "defense" && (
-          <div className="hud-grid hud-grid-5">
+          <div className="hud-grid hud-grid-6">
             {Object.values(TOWERS).map((t) => {
               const canAfford = gold >= t.cost;
               const isSelected = ghostType === t.id;
@@ -82,7 +82,7 @@ export default function ControlHUD({ store, view, me, activeTab, setActiveTab, g
                   <div className="card-desc">{t.role}</div>
                   <div className="card-stats">
                     <span>DMG {t.damage}</span>
-                    <span>RNG {t.range}</span>
+                    <span className={t.canHitAir ? "txt-cyan" : "muted-tag"}>{t.canHitAir ? "✈ AIR" : "GND ONLY"}</span>
                     <span>{t.fireRate}/s</span>
                   </div>
                 </button>
@@ -92,7 +92,7 @@ export default function ControlHUD({ store, view, me, activeTab, setActiveTab, g
         )}
 
         {activeTab === "raids" && (
-          <div className="hud-grid hud-grid-4">
+          <div className="hud-grid hud-grid-7">
             {Object.values(CREEP_RAIDS).map((c) => {
               const check = match && me ? V.canSendRaid(match, me, c.id) : { ok: false };
               const level = creepLevel(wave, false);
@@ -118,7 +118,7 @@ export default function ControlHUD({ store, view, me, activeTab, setActiveTab, g
                       HP {Math.round(c.hp * mult)}
                       {level > 1 && <span className="txt-amber"> (+{Math.round((mult - 1) * 100)}%)</span>}
                     </span>
-                    <span>SPD {c.speed}</span>
+                    <CreepTag def={c} />
                   </div>
                 </button>
               );
@@ -127,7 +127,7 @@ export default function ControlHUD({ store, view, me, activeTab, setActiveTab, g
         )}
 
         {activeTab === "sabotage" && (
-          <div className="hud-grid hud-grid-5">
+          <div className="hud-grid hud-grid-7">
             {Object.values(BOSS_SUMMONS).map((b) => {
               const check = match && me ? V.canSendRaid(match, me, b.id) : { ok: false };
               const level = creepLevel(wave, true);
@@ -149,7 +149,7 @@ export default function ControlHUD({ store, view, me, activeTab, setActiveTab, g
                   <div className="card-desc">{b.desc}</div>
                   <div className="card-stats">
                     <span className="txt-white bold">HP {Math.round(b.hp * mult).toLocaleString()}</span>
-                    <span className="txt-red bold">LEAK -{b.leakDamage}</span>
+                    <CreepTag def={b} fallback={<span className="txt-red bold">LEAK -{b.leakDamage}</span>} />
                   </div>
                 </button>
               );
@@ -224,6 +224,16 @@ export default function ControlHUD({ store, view, me, activeTab, setActiveTab, g
       </div>
     </div>
   );
+}
+
+// One-word ability tag for a creep card
+function CreepTag({ def, fallback = null }) {
+  if (def.flying) return <span className="ability-tag tag-air">✈ AIR</span>;
+  if (def.healAura) return <span className="ability-tag tag-heal">✚ HEAL AURA</span>;
+  if (def.jamAura) return <span className="ability-tag tag-jam">📡 JAMS TURRETS</span>;
+  if (def.empPulse) return <span className="ability-tag tag-emp">⚡ EMP PULSE</span>;
+  if (def.shieldAuraRadius) return <span className="ability-tag tag-shield">🛡 SHIELD AURA</span>;
+  return fallback || <span>SPD {def.speed}</span>;
 }
 
 function MatchupHint({ damageType }) {

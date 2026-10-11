@@ -96,6 +96,20 @@ export function createFx({ audible = true, volume = 1 } = {}) {
             text("DEMOLISHED!", e.x - 30, e.y - 18, "#ef4444", true);
             shake = Math.max(shake, 7);
             break;
+          case "heal":
+            rings.push({ x: e.x, y: e.y, r: 8, max: e.radius, alpha: 0.6, color: "244, 114, 182" });
+            text("+", e.x - 3, e.y - 14, "#f9a8d4", true);
+            break;
+          case "pulse":
+            play(sound.playAlarm);
+            rings.push({ x: e.x, y: e.y, r: 10, max: e.radius, alpha: 1, color: "163, 230, 53" });
+            burst(e.x, e.y, "#bef264", 24);
+            shake = Math.max(shake, 4);
+            break;
+          case "airburst":
+            rings.push({ x: e.x, y: e.y, r: 4, max: e.radius, alpha: 0.8, color: "232, 121, 249" });
+            burst(e.x, e.y, "#f5d0fe", 10);
+            break;
           case "emp":
             burst(e.x, e.y, "#38bdf8", 18);
             break;

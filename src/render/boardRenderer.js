@@ -7,12 +7,13 @@
 import { TILE_SIZE, BOARD_WIDTH, BOARD_HEIGHT, PIXEL_PATH } from "../shared/config/map.js";
 import { getTowerDefinition } from "../shared/config/towers.js";
 import { towerRange } from "../shared/balance.js";
-import { drawTowerAsset, drawCreepAsset, getEntityTier } from "./gameAssets.js";
+import { drawCreepAsset, getEntityTier } from "./gameAssets.js";
+import { drawTurret } from "./towerArt.js";
 import { groundLayer } from "./staticLayer.js";
 import { drawGlow, setGlowEnabled } from "./glow.js";
 
 // Creeps whose art has a "front" and should face their direction of travel
-const DIRECTIONAL = new Set(["scout_rush", "cyber_behemoth"]);
+const DIRECTIONAL = new Set(["scout_rush", "cyber_behemoth", "sky_skimmer", "storm_leviathan"]);
 
 // Deterministic crack pattern for the reactor core (angle, length, kink)
 const CRACKS = [
@@ -169,7 +170,7 @@ function drawPlacement(ctx, ui, towers, time) {
       // Translucent ghost of the turret
       ctx.save();
       ctx.globalAlpha = 0.55;
-      drawTowerAsset(ctx, { type: def.id, level: 1, targetAngle: -Math.PI / 2 }, def, px + TILE_SIZE / 2, py + TILE_SIZE / 2, false, time);
+      drawTurret(ctx, { type: def.id, level: 1, targetAngle: -Math.PI / 2 }, def, px + TILE_SIZE / 2, py + TILE_SIZE / 2, false, time);
       ctx.restore();
     }
   } else if (towers.some((t) => t.gridX === hover.x && t.gridY === hover.y)) {
@@ -188,8 +189,22 @@ function drawTowers(ctx, towers, ui, time) {
     const selected = ui.selectedTowerId === tower.id;
     if (selected) drawRange(ctx, tx, ty, towerRange(def, tower.level), "rgba(0, 240, 255, 0.1)", "rgba(0, 240, 255, 0.6)");
 
-    drawTowerAsset(ctx, tower, def, tx, ty, selected, time);
+    drawTurret(ctx, tower, def, tx, ty, selected, time);
 
+    if (tower.jammed && !tower.stunned) {
+      ctx.strokeStyle = "rgba(253, 224, 71, 0.8)";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([2, 3]);
+      ctx.beginPath();
+      ctx.arc(tx, ty, 25, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#fde047";
+      ctx.font = "bold 8px Orbitron, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("JAMMED", tx, ty - 27);
+      ctx.textAlign = "start";
+    }
     if (tower.stunned) {
       drawGlow(ctx, tx, ty, 30, "#38bdf8", 0.5);
       ctx.strokeStyle = "#38bdf8";
@@ -218,21 +233,30 @@ function drawTowers(ctx, towers, ui, time) {
 
     if (tower.level > 1) {
       const tier = getEntityTier(tower.level);
-      ctx.fillStyle = tier === 3 ? "#f59e0b" : tier === 2 ? "#38bdf8" : "#fbbf24";
-      ctx.font = `bold ${tier === 3 ? 11 : 10}px Orbitron, sans-serif`;
+      const label = `Lv.${tower.level}`;
+      ctx.font = "bold 8px Orbitron, sans-serif";
+      const w = ctx.measureText(label).width + 8;
+      // Small dark tag at the bottom edge of the tile so it never covers the turret
+      ctx.fillStyle = "rgba(5, 8, 18, 0.85)";
+      ctx.beginPath();
+      ctx.roundRect(tx - w / 2, ty + 17, w, 10, 3);
+      ctx.fill();
+      ctx.fillStyle = tier === 3 ? "#fbbf24" : tier === 2 ? "#7dd3fc" : "#e2e8f0";
       ctx.textAlign = "center";
-      ctx.fillText(`Lv.${tower.level}`, tx, ty + 23);
+      ctx.fillText(label, tx, ty + 25);
       ctx.textAlign = "start";
     }
   }
 }
 
 function drawCreeps(ctx, creeps, time, ui) {
-  // Ground shadows first so no creep's shadow covers another creep
-  ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
+  // Shadows first so no creep's shadow covers another creep. Flyers cast a
+  // smaller, offset shadow to show their altitude.
   for (const c of creeps) {
+    ctx.fillStyle = c.flying ? "rgba(0, 0, 0, 0.28)" : "rgba(0, 0, 0, 0.45)";
     ctx.beginPath();
-    ctx.ellipse(c.x + 2, c.y + c.radius * 0.7, c.radius * 0.9, c.radius * 0.35, 0, 0, Math.PI * 2);
+    if (c.flying) ctx.ellipse(c.x + 9, c.y + c.radius + 10, c.radius * 0.7, c.radius * 0.25, 0, 0, Math.PI * 2);
+    else ctx.ellipse(c.x + 2, c.y + c.radius * 0.7, c.radius * 0.9, c.radius * 0.35, 0, 0, Math.PI * 2);
     ctx.fill();
   }
 
@@ -314,9 +338,11 @@ function drawCreeps(ctx, creeps, time, ui) {
       ctx.fillText(`BOSS Lv.${creep.level || 1}`, 0, barY - 4);
       ctx.textAlign = "start";
     } else if ((creep.level || 1) > 1) {
-      ctx.fillStyle = creep.level >= 3 ? "#ef4444" : "#f59e0b";
-      ctx.font = "bold 8px Orbitron, sans-serif";
-      ctx.fillText(`Lv.${creep.level}`, -barW / 2, barY - 3);
+      // Elite pip instead of text: crowds stay readable, level shows in the art tier
+      ctx.fillStyle = creep.level >= 10 ? "#fbbf24" : creep.level >= 5 ? "#ef4444" : "#f59e0b";
+      ctx.beginPath();
+      ctx.arc(-barW / 2 - 4, barY + barH / 2, 2, 0, Math.PI * 2);
+      ctx.fill();
     }
     ctx.restore();
   }
@@ -400,6 +426,9 @@ export function drawBoard(ctx, scene, time, ui) {
   drawCore(ctx, time, scene.coreHp);
   drawPlacement(ctx, ui, scene.towers, time);
   drawTowers(ctx, scene.towers, ui, time);
-  drawCreeps(ctx, scene.creeps, time, ui);
+  // Ground creeps under the shots, flyers above everything
+  drawCreeps(ctx, scene.creeps.filter((c) => !c.flying), time, ui);
   drawShots(ctx, scene.projectiles, scene.beams, ui);
+  const flyers = scene.creeps.filter((c) => c.flying);
+  if (flyers.length) drawCreeps(ctx, flyers, time, ui);
 }

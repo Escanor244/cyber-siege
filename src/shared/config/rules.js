@@ -2,7 +2,7 @@
 
 import { TOWERS } from "./towers.js";
 
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3; // v3: flyers, support creeps, Flak tower
 
 export const TICK_MS = 250; // server clock resolution
 export const MAX_TICK_ADVANCE_MS = 1000; // a stalled server never fast-forwards more than this per tick
