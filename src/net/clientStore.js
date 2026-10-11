@@ -8,6 +8,7 @@
 import { PROTOCOL_VERSION } from "../shared/protocol.js";
 
 let nextReqId = 1;
+const NOTIFY_MS = 80; // max ~12 React updates per second
 
 export function createClientStore({
   transport,
@@ -36,9 +37,17 @@ export function createClientStore({
   const pending = new Map(); // reqId -> action type
   let hadWelcome = false;
 
+  // State changes apply immediately (anything reading getState() sees them), but
+  // React is told at most every NOTIFY_MS. A busy fight produces dozens of server
+  // messages per second; re-rendering the HUD for each one was the main cost on phones.
+  let notifyTimer = null;
+  function notify() {
+    notifyTimer = null;
+    for (const l of listeners) l();
+  }
   function set(patch) {
     state = { ...state, ...patch };
-    for (const l of listeners) l();
+    if (notifyTimer === null) notifyTimer = setTimeout(notify, NOTIFY_MS);
   }
 
   function emit(type, payload) {
@@ -177,7 +186,7 @@ export function createClientStore({
         break;
 
       case "eco":
-        patchPlayer(msg.playerId, { income: msg.income, gold: msg.gold });
+        patchPlayer(msg.playerId, { income: msg.income, gold: msg.gold, ecoOwned: msg.ecoOwned || {} });
         emit("eco", msg);
         break;
 
@@ -292,6 +301,7 @@ export function createClientStore({
     sendSnap: (snap) => send({ type: "lane-snap", t: snap.t, c: snap.c }),
     ping: () => send({ type: "ping", t: now() }),
     destroy() {
+      if (notifyTimer !== null) clearTimeout(notifyTimer);
       listeners.clear();
       handlers.clear();
       transport.close();

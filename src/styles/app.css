@@ -33,7 +33,7 @@
 @keyframes cs-bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
 @keyframes cs-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
 
-button { font: inherit; }
+button { font: inherit; touch-action: manipulation; }
 button:focus-visible, input:focus-visible { outline: 2px solid var(--neon-cyan); outline-offset: 2px; }
 
 /* --------------------------------------------------------------------------

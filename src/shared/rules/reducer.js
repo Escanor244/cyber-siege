@@ -14,7 +14,7 @@ import {
   RAID_INCOME_BONUS_PER_GOLD,
   DEFAULT_TARGET_MODE,
 } from "../config/rules.js";
-import { upgradeCost, sellRefund, waveClearBonus } from "../balance.js";
+import { upgradeCost, sellRefund, waveClearBonus, ecoPrice } from "../balance.js";
 import { randomInt, sampleDistinct } from "../rng.js";
 import { issueCreeps, resolveReport, expireOverdue, clearLedger, publicEntry } from "./ledger.js";
 import { getWave } from "./waveGen.js";
@@ -315,10 +315,14 @@ export function applyAction(match, playerId, action) {
       const check = V.canBuyEco(match, player, action.ecoId);
       if (!check.ok) return rejected(check.reason);
       const eco = getEcoUpgrade(action.ecoId);
-      spend(player, eco.cost);
+      spend(player, ecoPrice(eco, player.ecoOwned));
       player.income += eco.incomeBoost;
       player.stats.ecoBought += 1;
-      return { ok: true, events: [{ type: "eco", playerId, ecoId: eco.id, income: player.income, gold: player.gold }] };
+      player.ecoOwned = { ...(player.ecoOwned || {}), [eco.id]: (player.ecoOwned?.[eco.id] || 0) + 1 };
+      return {
+        ok: true,
+        events: [{ type: "eco", playerId, ecoId: eco.id, income: player.income, gold: player.gold, ecoOwned: { ...player.ecoOwned } }],
+      };
     }
 
     case "cast": {

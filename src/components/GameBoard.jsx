@@ -101,20 +101,34 @@ export default function GameBoard({
     // Keep our lane simulated while the tab is hidden (rAF stops in background tabs)
     const bg = kind === "own" ? setInterval(() => document.hidden && lane.update(), 250) : 0;
 
+    // Touch devices draw the spectator board at 30fps; it's a view, not your lane.
+    const coarse = window.matchMedia?.("(pointer: coarse)").matches;
+    let frameNo = 0;
+
     const frame = (t) => {
+      raf = requestAnimationFrame(frame);
       const dt = Math.min(100, t - last);
       last = t;
       if (kind === "own") reportFrame(dt);
       const p = props.current;
       let scene;
       if (kind === "own") {
+        // Our lane always simulates, even if the canvas is momentarily hidden
         fx.consume(lane.update());
         scene = ownScene(lane, p.coreHp);
       } else {
-        fx.consume(remote.drainEvents());
+        const events = remote.drainEvents();
+        // Collapsed enemy panel (phones): nothing to draw
+        if (canvas.offsetParent === null || canvas.clientWidth < 4) return;
+        frameNo += 1;
+        if (coarse && frameNo % 2 === 1) {
+          fx.consume(events);
+          return;
+        }
+        fx.consume(events);
         scene = remote.scene(store.matchNow());
       }
-      fx.update(dt);
+      fx.update(kind === "enemy" && coarse ? dt * 2 : dt);
 
       const scale = canvas.width / BOARD_WIDTH;
       const off = fx.shakeOffset(settings.get().reducedMotion);
@@ -131,7 +145,6 @@ export default function GameBoard({
       fx.draw(ctx);
       ctx.setTransform(scale, 0, 0, scale, 0, 0);
       fx.drawOverlay(ctx, t);
-      raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
 

@@ -6,7 +6,7 @@ import { TOWERS } from "../config/towers.js";
 import { CREEP_RAIDS, BOSS_SUMMONS } from "../config/creeps.js";
 import { ECO_UPGRADES } from "../config/economy.js";
 import { GRID_COLS, GRID_ROWS, PIXEL_PATH } from "../config/map.js";
-import { towerRange, upgradeCost } from "../balance.js";
+import { towerRange, upgradeCost, ecoPrice } from "../balance.js";
 import { nextRandom, randomInt } from "../rng.js";
 import * as V from "../rules/validate.js";
 import { damageMultiplier } from "../sim/damage.js";
@@ -127,10 +127,14 @@ export function decideBotActions(match, botId, rngHolder, difficulty = "normal")
 
   // 3. Economy
   if (nextRandom(rngHolder) < cfg.ecoChance) {
-    const eco = ECO_UPGRADES.filter((e) => canAfford(e.cost)).at(-1);
-    if (eco && gold - eco.cost >= 60) {
+    // Best upgrade it can afford at today's (escalated) price, leaving a defence buffer
+    const priced = ECO_UPGRADES.map((e) => ({ e, price: ecoPrice(e, botView.ecoOwned) }));
+    const pick = priced.filter((x) => canAfford(x.price)).at(-1);
+    const eco = pick?.e;
+    if (eco && gold - pick.price >= 60) {
       actions.push({ type: "eco", ecoId: eco.id });
-      spend(eco.cost);
+      spend(pick.price);
+      botView.ecoOwned = { ...(botView.ecoOwned || {}), [eco.id]: (botView.ecoOwned?.[eco.id] || 0) + 1 };
     }
   }
 

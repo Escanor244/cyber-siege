@@ -7,7 +7,7 @@ import { CREEP_RAIDS, BOSS_SUMMONS } from "../shared/config/creeps.js";
 import { SABOTAGE_SPELLS } from "../shared/config/spells.js";
 import { ECO_UPGRADES } from "../shared/config/economy.js";
 import { TARGET_MODES } from "../shared/config/rules.js";
-import { creepLevel, creepHpMultiplier, upgradeCost, sellRefund, towerDamage, towerRange } from "../shared/balance.js";
+import { creepLevel, creepHpMultiplier, upgradeCost, sellRefund, towerDamage, towerRange, ecoPrice } from "../shared/balance.js";
 import * as V from "../shared/rules/validate.js";
 import { matchups } from "../shared/sim/damage.js";
 import { useTicker } from "../lib/useTicker.js";
@@ -207,12 +207,14 @@ export default function ControlHUD({ store, view, me, activeTab, setActiveTab, g
                   <div className="card-top">
                     <span className="eco-badge">+{eco.incomeBoost}/2s</span>
                     <span className="card-title">{eco.name}</span>
-                    <span className="cost-tag">${eco.cost}</span>
+                    <span className="cost-tag">${ecoPrice(eco, me?.ecoOwned)}</span>
                   </div>
                   <div className="card-desc">{eco.desc}</div>
                   <div className="card-stats">
                     <span>TIER {eco.tier}</span>
-                    <span className="txt-amber">PERMANENT</span>
+                    <span className={me?.ecoOwned?.[eco.id] ? "txt-amber bold" : "txt-amber"}>
+                      {me?.ecoOwned?.[eco.id] ? `OWNED ×${me.ecoOwned[eco.id]}` : "PERMANENT"}
+                    </span>
                   </div>
                 </button>
               );

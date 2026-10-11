@@ -54,6 +54,19 @@ export function sellRefund(towerDef, level) {
   return Math.floor(towerDef.cost * 0.7 * level);
 }
 
+// Power grid prices rise with every purchase so income can't simply be spammed:
+// the same upgrade costs 50% more each time you buy it, and every purchase of
+// any upgrade makes the others 10% pricier (no dodging by rotating tiers).
+export const ECO_SAME_GROWTH = 1.5;
+export const ECO_OTHER_GROWTH = 1.1;
+
+export function ecoPrice(eco, ecoOwned = {}) {
+  const same = ecoOwned[eco.id] || 0;
+  let others = 0;
+  for (const [id, n] of Object.entries(ecoOwned)) if (id !== eco.id) others += n;
+  return Math.round(eco.cost * ECO_SAME_GROWTH ** same * ECO_OTHER_GROWTH ** others);
+}
+
 export function waveClearBonus(waveNumber) {
   return 50 + waveNumber * 10;
 }

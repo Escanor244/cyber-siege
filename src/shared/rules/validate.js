@@ -9,7 +9,7 @@ import { findCreepDefinition } from "../config/creeps.js";
 import { getSpellDefinition } from "../config/spells.js";
 import { getEcoUpgrade } from "../config/economy.js";
 import { MAX_OUTSTANDING_RAID_CREEPS, TARGET_MODES } from "../config/rules.js";
-import { upgradeCost } from "../balance.js";
+import { upgradeCost, ecoPrice } from "../balance.js";
 import { openCount } from "./ledger.js";
 
 const OK = Object.freeze({ ok: true });
@@ -90,7 +90,7 @@ export function canBuyEco(match, player, ecoId) {
   if (!base.ok) return base;
   const eco = getEcoUpgrade(ecoId);
   if (!eco) return fail("Unknown upgrade");
-  if (player.gold < eco.cost) return fail("Not enough gold");
+  if (player.gold < ecoPrice(eco, player.ecoOwned)) return fail("Not enough gold");
   return OK;
 }
 

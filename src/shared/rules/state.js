@@ -56,6 +56,7 @@ export function createPlayer({ id, name, slot, isHost = false, isBot = false, to
     hp: STARTING_HP,
     towers: [],
     cooldowns: {}, // spellId -> matchMs when ready again
+    ecoOwned: {}, // ecoId -> times bought this match (prices escalate)
     stats: emptyStats(),
   };
 }
@@ -66,6 +67,7 @@ export function resetPlayerForMatch(p) {
   p.hp = STARTING_HP;
   p.towers = [];
   p.cooldowns = {};
+  p.ecoOwned = {};
   p.stats = emptyStats();
 }
 
@@ -94,6 +96,7 @@ function publicPlayer(p) {
     hp: p.hp,
     towers: p.towers.map((t) => ({ ...t })),
     cooldowns: { ...p.cooldowns },
+    ecoOwned: { ...(p.ecoOwned || {}) },
     stats: { ...p.stats },
   };
 }

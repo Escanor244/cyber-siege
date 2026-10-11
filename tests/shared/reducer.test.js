@@ -84,6 +84,47 @@ describe("actions", () => {
   });
 });
 
+describe("power grid pricing", () => {
+  it("each purchase of the same upgrade costs 50% more", () => {
+    const { match, a } = playingMatch({ gold: 10_000 });
+    const paid = [];
+    for (let i = 0; i < 4; i++) {
+      const before = a.gold;
+      expect(applyAction(match, "pA", { type: "eco", ecoId: "solar_core" }).ok).toBe(true);
+      paid.push(before - a.gold);
+    }
+    expect(paid).toEqual([80, 120, 180, 270]);
+    expect(a.income).toBe(STARTING_INCOME + 4 * 5);
+    expect(a.ecoOwned).toEqual({ solar_core: 4 });
+  });
+
+  it("buying any upgrade makes the others 10% pricier (no rotating to dodge)", () => {
+    const { match, a } = playingMatch({ gold: 10_000 });
+    applyAction(match, "pA", { type: "eco", ecoId: "solar_core" });
+    applyAction(match, "pA", { type: "eco", ecoId: "solar_core" });
+    const before = a.gold;
+    applyAction(match, "pA", { type: "eco", ecoId: "quantum_dynamo" });
+    expect(before - a.gold).toBe(Math.round(175 * 1.1 ** 2));
+  });
+
+  it("the server rejects a purchase you can only afford at the old price", () => {
+    const { match, a } = playingMatch({ gold: 199 });
+    expect(applyAction(match, "pA", { type: "eco", ecoId: "solar_core" }).ok).toBe(true); // paid 80
+    // 119 left: enough at the old 80 price, not at the new 120 price
+    expect(applyAction(match, "pA", { type: "eco", ecoId: "solar_core" })).toMatchObject({ ok: false, reason: "Not enough gold" });
+    expect(a.gold).toBe(119);
+  });
+
+  it("prices reset for a new match and are visible to clients", () => {
+    const { match, a } = playingMatch({ gold: 10_000 });
+    applyAction(match, "pA", { type: "eco", ecoId: "solar_core" });
+    expect(publicView(match).players[0].ecoOwned).toEqual({ solar_core: 1 });
+    forfeit(match, "pB");
+    returnToLobby(match);
+    expect(a.ecoOwned).toEqual({});
+  });
+});
+
 describe("clock", () => {
   it("pays income every 2s and a wave bonus with each wave", () => {
     const { match, a } = playingMatch();
