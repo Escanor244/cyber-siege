@@ -103,6 +103,30 @@ describe("lobby (the 'join after waiting' bug)", () => {
     expect(guestView).not.toContain(host.tokenBox.token);
   });
 
+  it("unsubscribing after the store is destroyed is safe (blank-screen-on-home bug)", async () => {
+    newRoom();
+    const host = joinAs(room, { intent: "create", name: "Host" });
+    await advance(300);
+    const off = host.store.on("wave", () => {});
+    const offView = host.store.subscribe(() => {});
+    host.store.destroy();
+    expect(() => off()).not.toThrow();
+    expect(() => offView()).not.toThrow();
+  });
+
+  it("tells an outdated (cached) client to refresh instead of leaving it stuck", async () => {
+    newRoom();
+    joinAs(room, { intent: "create", name: "Host" });
+    await advance(300);
+    const old = room.connect();
+    const received = [];
+    old.onMessage = (m) => received.push(m);
+    old.send({ type: "join", isCreator: false, playerName: "Friend", sessionId: "cs_123_abc" });
+    await advance(300);
+    expect(received).toEqual([expect.objectContaining({ type: "room-closed", reason: expect.stringMatching(/refresh/i) })]);
+    expect(old.open).toBe(false);
+  });
+
   it("joining a code nobody created is rejected", async () => {
     newRoom();
     const guest = joinAs(room, { intent: "join", name: "Guest" });
