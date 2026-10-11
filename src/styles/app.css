@@ -214,7 +214,7 @@ body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
    -------------------------------------------------------------------------- */
 .toast-stack {
   position: fixed;
-  top: max(14px, env(safe-area-inset-top));
+  top: calc(env(safe-area-inset-top) + 112px); /* below the header, over the boards */
   left: 50%;
   transform: translateX(-50%);
   z-index: 2000;
@@ -314,6 +314,7 @@ body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
     scrollbar-width: thin;
   }
   .hud-grid .card-btn { flex: 0 0 168px; scroll-snap-align: start; }
+  .toast-stack { top: calc(env(safe-area-inset-top) + 150px); }
   .card-top { flex-wrap: wrap; row-gap: 2px; }
   .card-top .card-title { order: 3; flex-basis: 100%; }
 }
@@ -404,6 +405,8 @@ body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
   .stats-grid { grid-template-columns: 1fr; }
   .place-btn { width: 44px; height: 44px; }
   .global-alert-banner { font-size: 0.74rem; padding: 7px 14px; letter-spacing: 0.04em; }
+  /* Phones: toasts sit just above the controls, clear of the header */
+  .toast-stack { top: auto; bottom: calc(env(safe-area-inset-bottom) + 190px); flex-direction: column-reverse; }
 }
 
 /* Phones, landscape: board on the left, enemy + HUD on the right */
@@ -436,6 +439,7 @@ body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
   .hud-grid .card-btn { flex: 0 0 140px; padding: 6px 8px; }
   .card-desc { display: none; }
   .battleground-header { padding: 4px 8px; }
+  .toast-stack { top: calc(env(safe-area-inset-top) + 56px); }
   .tower-inspector-panel { position: fixed; inset: auto 8px 8px auto; width: min(420px, 60vw); border-radius: 14px; z-index: 900; }
   .inspector-content { flex-direction: column; align-items: stretch; gap: 8px; }
 }

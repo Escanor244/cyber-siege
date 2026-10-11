@@ -1,4 +1,5 @@
 // Cyber Siege - Bespoke Visual Assets & Canvas Renderers
+import { drawGlow } from "./glow.js";
 // 3 Visual Tiers: Tier 1 (Lv. 1-4), Tier 2 (Lv. 5-9), Tier 3 (Lv. 10-100)
 
 export function getEntityTier(level = 1) {
@@ -53,6 +54,9 @@ export function drawTowerAsset(ctx, tower, config, tx, ty, isSelected, time) {
 function drawPedestal(ctx, tx, ty, isSelected, config, tier, time) {
   const size = 38;
   const half = size / 2;
+
+  // Energy bleed under the plate: brighter as the turret is upgraded
+  drawGlow(ctx, tx, ty, tier === 3 ? 34 : tier === 2 ? 30 : 26, tier === 3 ? "#f59e0b" : config.color, tier === 3 ? 0.55 : tier === 2 ? 0.4 : 0.22);
 
   // Base background
   ctx.fillStyle = tier === 3 ? "#0f172a" : tier === 2 ? "#172033" : "#1e293b";
@@ -205,10 +209,8 @@ function drawCryoWeapon(ctx, config, tier, time) {
 
     // Central Frosted Crystal
     ctx.fillStyle = "#00f0ff";
-    ctx.shadowColor = "#00f0ff";
-    ctx.shadowBlur = 8;
-    ctx.fillRect(6, -2.5, 12, 5);
-    ctx.shadowBlur = 0;
+    drawGlow(ctx, 12, 0, 15, "#00f0ff");
+        ctx.fillRect(6, -2.5, 12, 5);
   } else {
     // Tier 3: Tri-Crystal Glacial Focusing Prism
     const pulse = Math.sin(time * 0.008) * 3;
@@ -228,16 +230,14 @@ function drawCryoWeapon(ctx, config, tier, time) {
 
     // Focused Prism Core
     ctx.fillStyle = "#e0f2fe";
-    ctx.shadowColor = "#38bdf8";
-    ctx.shadowBlur = 12;
-    ctx.beginPath();
+    drawGlow(ctx, 16, 0, 20, "#38bdf8");
+        ctx.beginPath();
     ctx.moveTo(4, 0);
     ctx.lineTo(18, -6);
     ctx.lineTo(22 + pulse * 0.5, 0);
     ctx.lineTo(18, 6);
     ctx.closePath();
     ctx.fill();
-    ctx.shadowBlur = 0;
   }
 
   // Inner Frost Eye
@@ -295,12 +295,10 @@ function drawPlasmaWeapon(ctx, config, tier, time) {
 
     // Swirling Emerald Core
     ctx.fillStyle = "#22c55e";
-    ctx.shadowColor = "#4ade80";
-    ctx.shadowBlur = 10;
-    ctx.beginPath();
+    drawGlow(ctx, 10, 0, 17, "#4ade80");
+        ctx.beginPath();
     ctx.arc(10, 0, 5 + boil * 0.5, 0, Math.PI * 2);
     ctx.fill();
-    ctx.shadowBlur = 0;
 
     // Glowing Rail Tips
     ctx.fillStyle = "#86efac";
@@ -387,12 +385,10 @@ function drawTeslaWeapon(ctx, config, tier, time) {
 
     // Supercharged Core
     ctx.fillStyle = "#ffffff";
-    ctx.shadowColor = "#38bdf8";
-    ctx.shadowBlur = 12;
-    ctx.beginPath();
+    drawGlow(ctx, 20, 0, 18, "#38bdf8");
+        ctx.beginPath();
     ctx.arc(20, 0, 5.5, 0, Math.PI * 2);
     ctx.fill();
-    ctx.shadowBlur = 0;
   }
 
   // Center Electrode
@@ -459,10 +455,8 @@ function drawRailgunWeapon(ctx, config, tier, time) {
 
     // Core Particle Conduit
     ctx.fillStyle = "#f87171";
-    ctx.shadowColor = "#ef4444";
-    ctx.shadowBlur = 10;
-    ctx.fillRect(4, -1.5, 22 + hum, 3);
-    ctx.shadowBlur = 0;
+    drawGlow(ctx, 15, 0, 20, "#ef4444");
+        ctx.fillRect(4, -1.5, 22 + hum, 3);
 
     // Laser Sight Beam
     ctx.strokeStyle = "rgba(239, 68, 68, 0.45)";
@@ -609,12 +603,10 @@ function drawMechCreep(ctx, creep, r, tier, time) {
 
   // Red Optic Eye
   ctx.fillStyle = "#ef4444";
-  ctx.shadowColor = "#ef4444";
-  ctx.shadowBlur = 6;
-  ctx.beginPath();
+  drawGlow(ctx, 0, 0, r * 0.95, "#ef4444");
+    ctx.beginPath();
   ctx.arc(0, 0, r * 0.28, 0, Math.PI * 2);
   ctx.fill();
-  ctx.shadowBlur = 0;
 }
 
 // --- DRONE SWARM (Micro-drones) ---
@@ -706,12 +698,10 @@ function drawBehemothBoss(ctx, creep, r, tier, time) {
 
   // Titan Carapace
   ctx.fillStyle = creep.color || "#ef4444";
-  ctx.shadowColor = "#ef4444";
-  ctx.shadowBlur = 14;
-  ctx.beginPath();
+  drawGlow(ctx, 0, 0, r * 2, "#ef4444");
+    ctx.beginPath();
   ctx.arc(0, 0, r, 0, Math.PI * 2);
   ctx.fill();
-  ctx.shadowBlur = 0;
 
   // Armored Shell
   ctx.strokeStyle = "#000000";
@@ -759,12 +749,10 @@ function drawVoidReaverBoss(ctx, creep, r, tier, time) {
 
   // Void Scythe Body
   ctx.fillStyle = creep.color || "#a855f7";
-  ctx.shadowColor = "#c084fc";
-  ctx.shadowBlur = 18;
-  ctx.beginPath();
+  drawGlow(ctx, 0, 0, r * 2.1, "#c084fc");
+    ctx.beginPath();
   ctx.arc(0, 0, r, 0, Math.PI * 2);
   ctx.fill();
-  ctx.shadowBlur = 0;
 
   // Abyssal Eye
   ctx.fillStyle = tier === 3 ? "#ef4444" : "#ffffff";

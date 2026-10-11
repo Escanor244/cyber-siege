@@ -89,6 +89,15 @@ export default function GameBoard({
       }
     });
 
+    // Boss warnings on the board that is about to be hit
+    const boardOwnerId = () => (kind === "own" ? store.getState().playerId : store.opponent()?.id);
+    const offIssued = store.on("issued", (msg) => {
+      if (msg.laneId === boardOwnerId() && msg.isBoss) fx.consume([{ type: "bossWarning" }]);
+    });
+    const offWave = store.on("wave", (msg) => {
+      if (msg.isBossWave && kind === "own") fx.consume([{ type: "bossWarning" }]);
+    });
+
     // Keep our lane simulated while the tab is hidden (rAF stops in background tabs)
     const bg = kind === "own" ? setInterval(() => document.hidden && lane.update(), 250) : 0;
 
@@ -116,8 +125,12 @@ export default function GameBoard({
         ghostType: p.ghostType,
         ghostOk: p.ghostOk,
         selectedTowerId: p.selectedTowerId,
+        scale,
+        lowQuality: isLowQuality(),
       });
       fx.draw(ctx);
+      ctx.setTransform(scale, 0, 0, scale, 0, 0);
+      fx.drawOverlay(ctx, t);
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
@@ -126,6 +139,8 @@ export default function GameBoard({
       cancelAnimationFrame(raf);
       clearInterval(bg);
       offSpell();
+      offIssued();
+      offWave();
       offSettings();
     };
   }, [handle, kind]);

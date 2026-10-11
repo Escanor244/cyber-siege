@@ -2,6 +2,10 @@
 // matches and big waves can't grow memory or tank the frame rate.
 
 import { sound } from "../audio/soundFx.js";
+import { drawGlow } from "./glow.js";
+import { BOARD_WIDTH, BOARD_HEIGHT } from "../shared/config/map.js";
+
+const TOWER_FLASH = { gatling: "#00f0ff", cryo: "#38bdf8", plasma: "#f59e0b", tesla: "#c084fc", railgun: "#f43f5e" };
 
 const QUALITY = {
   high: { maxParticles: 320, maxTexts: 50, scale: 1 },
@@ -12,6 +16,8 @@ export function createFx({ audible = true, volume = 1 } = {}) {
   const particles = [];
   const texts = [];
   const rings = [];
+  const flashes = [];
+  let bossWarning = 0;
   let quality = QUALITY.high;
   let shake = 0;
   let showDamage = true;
@@ -47,9 +53,20 @@ export function createFx({ audible = true, volume = 1 } = {}) {
     consume(events) {
       for (const e of events) {
         switch (e.type) {
-          case "fire":
+          case "fire": {
             if (e.towerType === "plasma") play(sound.playMortar, 0.6 * volume);
             else play(sound.playLaser, 0.7 * volume);
+            // Muzzle flash at the barrel tip
+            const d = Math.hypot(e.tx - e.x, e.ty - e.y) || 1;
+            const reach = e.towerType === "railgun" ? 26 : 20;
+            if (flashes.length < 40) {
+              flashes.push({ x: e.x + ((e.tx - e.x) / d) * reach, y: e.y + ((e.ty - e.y) / d) * reach, life: 70, color: TOWER_FLASH[e.towerType] || "#ffffff" });
+            }
+            break;
+          }
+          case "bossWarning":
+            bossWarning = 2600;
+            play(sound.playAlarm);
             break;
           case "hit":
             if (showDamage) text(`-${e.amount}`, e.x + (Math.random() * 12 - 6), e.y - 12, e.color || "#ffffff");
@@ -110,6 +127,11 @@ export function createFx({ audible = true, volume = 1 } = {}) {
         if (r.alpha <= 0) rings.splice(i, 1);
       }
       shake = Math.max(0, shake - dt * 30);
+      for (let i = flashes.length - 1; i >= 0; i--) {
+        flashes[i].life -= dtMs;
+        if (flashes[i].life <= 0) flashes.splice(i, 1);
+      }
+      bossWarning = Math.max(0, bossWarning - dtMs);
     },
 
     // Offset to apply to the whole board this frame
@@ -119,6 +141,16 @@ export function createFx({ audible = true, volume = 1 } = {}) {
     },
 
     draw(ctx) {
+      for (const f of flashes) {
+        const a = f.life / 70;
+        drawGlow(ctx, f.x, f.y, 12, f.color, a);
+        ctx.globalAlpha = a;
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
       for (const r of rings) {
         ctx.strokeStyle = `rgba(${r.color}, ${Math.max(0, r.alpha)})`;
         ctx.lineWidth = 3;
@@ -140,6 +172,31 @@ export function createFx({ audible = true, volume = 1 } = {}) {
         ctx.fillStyle = t.color;
         ctx.fillText(t.text, t.x, t.y);
       }
+      ctx.globalAlpha = 1;
+    },
+
+    // Screen-space overlays (drawn last, unaffected by particles)
+    drawOverlay(ctx, time) {
+      if (bossWarning <= 0) return;
+      const fade = Math.min(1, bossWarning / 400, (2600 - bossWarning) / 200 + 0.2);
+      const blink = 0.65 + Math.sin(time * 0.018) * 0.35;
+      // Red edge vignette
+      const grad = ctx.createRadialGradient(BOARD_WIDTH / 2, BOARD_HEIGHT / 2, BOARD_HEIGHT * 0.35, BOARD_WIDTH / 2, BOARD_HEIGHT / 2, BOARD_WIDTH * 0.62);
+      grad.addColorStop(0, "rgba(239, 68, 68, 0)");
+      grad.addColorStop(1, `rgba(239, 68, 68, ${0.35 * fade * blink})`);
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT);
+      ctx.globalAlpha = fade;
+      ctx.fillStyle = "rgba(20, 4, 8, 0.85)";
+      ctx.fillRect(BOARD_WIDTH / 2 - 120, 14, 240, 30);
+      ctx.strokeStyle = "#ef4444";
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(BOARD_WIDTH / 2 - 120, 14, 240, 30);
+      ctx.fillStyle = `rgba(254, 202, 202, ${blink})`;
+      ctx.font = "900 15px Orbitron, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("⚠ BOSS INBOUND ⚠", BOARD_WIDTH / 2, 35);
+      ctx.textAlign = "start";
       ctx.globalAlpha = 1;
     },
 

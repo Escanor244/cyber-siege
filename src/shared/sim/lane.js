@@ -337,6 +337,8 @@ export function stepLane(lane) {
         applyDamage(lane, target, p.damage, p.damageType, p.color);
         continue;
       }
+      p.dirX = dx / dist; // heading, used by the renderer for tracers
+      p.dirY = dy / dist;
       p.x += (dx / dist) * stepPx;
       p.y += (dy / dist) * stepPx;
       keep.push(p);
